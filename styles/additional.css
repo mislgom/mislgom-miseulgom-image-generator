@@ -1022,24 +1022,7 @@
     box-shadow: 0 0 0 2px var(--accent-primary-alpha);
 }
 
-/* 🆕 이미지 라이트박스 배너 */
-/* 배경 오버레이 */
-.lightbox-overlay {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: rgba(0, 0, 0, 0.6);
-    z-index: 9999;
-    cursor: pointer;
-}
-
-.lightbox-overlay.active {
-    display: block;
-}
-
+/* 🆕 이미지 라이트박스 배너 (호버 모드) */
 .image-lightbox {
     display: none;
     position: fixed;
@@ -1054,13 +1037,14 @@
     z-index: 10000;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
     padding: 24px;
-    animation: bannerSlideIn 0.3s ease-out;
+    animation: bannerFadeIn 0.2s ease-out;
+    pointer-events: auto;  /* 호버 감지 가능 */
 }
 
-@keyframes bannerSlideIn {
+@keyframes bannerFadeIn {
     from {
         opacity: 0;
-        transform: translate(-50%, -60%);
+        transform: translate(-50%, -55%);
     }
     to {
         opacity: 1;
@@ -1080,32 +1064,6 @@
     border-radius: 8px;
     display: block;
     margin: 0 auto;
-}
-
-.lightbox-close {
-    position: absolute;
-    top: 16px;
-    right: 16px;
-    font-size: 28px;
-    color: var(--text-primary);
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    width: 40px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    z-index: 10;
-}
-
-.lightbox-close:hover {
-    background: var(--accent-primary);
-    color: white;
-    border-color: var(--accent-primary);
-    transform: scale(1.1);
 }
 
 .style-info {

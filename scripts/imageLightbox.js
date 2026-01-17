@@ -4,50 +4,36 @@
 
 const ImageLightbox = {
     init() {
-        console.log('🖼️ ImageLightbox 초기화');
+        console.log('🖼️ ImageLightbox 초기화 (호버 모드)');
         
-        // 모든 스타일 썸네일에 클릭 이벤트 추가
+        // 모든 스타일 썸네일에 마우스 오버/아웃 이벤트 추가
         document.querySelectorAll('.style-thumbnail').forEach(thumbnail => {
-            thumbnail.addEventListener('click', (e) => {
+            // 마우스 오버 시 라이트박스 열기
+            thumbnail.addEventListener('mouseenter', (e) => {
                 e.stopPropagation();  // 라디오 버튼 선택 방지
                 this.open(thumbnail.src, thumbnail.alt);
             });
+            
+            // 클릭 방지 (라디오 버튼 선택만 되도록)
+            thumbnail.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
         });
 
-        // 라이트박스 닫기
+        // 라이트박스와 썸네일 영역에서 벗어나면 닫기
         const lightbox = document.getElementById('image-lightbox');
-        const overlay = document.getElementById('lightbox-overlay');
-        const closeBtn = document.getElementById('lightbox-close');
-
-        // 오버레이 클릭 시 닫기
-        if (overlay) {
-            overlay.addEventListener('click', () => {
+        const styleOptions = document.querySelector('.style-options');
+        
+        // 라이트박스에서 마우스가 나가면 닫기
+        if (lightbox) {
+            lightbox.addEventListener('mouseleave', () => {
                 this.close();
             });
         }
-
-        // 라이트박스 배경 클릭 시 닫기 (혹시 오버레이가 없을 경우 대비)
-        if (lightbox) {
-            lightbox.addEventListener('click', (e) => {
-                // 라이트박스 자체를 클릭한 경우에만 닫기 (이미지나 버튼 제외)
-                if (e.target === lightbox) {
-                    this.close();
-                }
-            });
-
-            // 이미지 클릭 시 닫기 방지
-            const lightboxImage = document.getElementById('lightbox-image');
-            if (lightboxImage) {
-                lightboxImage.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                });
-            }
-        }
-
-        // 닫기 버튼
-        if (closeBtn) {
-            closeBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
+        
+        // 스타일 옵션 영역에서 마우스가 나가면 닫기
+        if (styleOptions) {
+            styleOptions.addEventListener('mouseleave', () => {
                 this.close();
             });
         }
@@ -62,34 +48,25 @@ const ImageLightbox = {
 
     open(src, alt) {
         const lightbox = document.getElementById('image-lightbox');
-        const overlay = document.getElementById('lightbox-overlay');
         const image = document.getElementById('lightbox-image');
 
         if (lightbox && image) {
             image.src = src;
             image.alt = alt;
             lightbox.classList.add('active');
-            if (overlay) {
-                overlay.classList.add('active');
-            }
-            document.body.style.overflow = 'hidden';
+            // 호버 모드에서는 body 스크롤 유지
             
-            console.log('🖼️ 라이트박스 열림:', alt);
+            console.log('🖼️ 라이트박스 열림 (호버):', alt);
         }
     },
 
     close() {
         const lightbox = document.getElementById('image-lightbox');
-        const overlay = document.getElementById('lightbox-overlay');
 
         if (lightbox) {
             lightbox.classList.remove('active');
-            if (overlay) {
-                overlay.classList.remove('active');
-            }
-            document.body.style.overflow = '';
             
-            console.log('🖼️ 라이트박스 닫힘');
+            console.log('🖼️ 라이트박스 닫힘 (호버)');
         }
     }
 };
