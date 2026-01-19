@@ -154,14 +154,14 @@ const API = {
     // ========== 로컬 Stable Diffusion WebUI API ==========
     
     /**
-     * 로컬 SD WebUI로 이미지 생성 (txt2img) - v3.0 시대 자동 감지 + 자연어 프롬프트
+     * 로컬 SD WebUI로 이미지 생성 (txt2img) - v3.0 Flux2-Dev FP8 최적화
      * @param {Object} params - 생성 파라미터
      * @param {string} params.prompt - 프롬프트
-     * @param {string} params.style - 스타일 (애니메이션 모델 자동 전환)
+     * @param {string} params.style - 스타일
      * @param {number} params.width - 너비 (기본: 1024)
      * @param {number} params.height - 높이 (기본: 1024)
-     * @param {number} params.steps - 샘플링 스텝 (기본: 30)
-     * @param {number} params.cfg_scale - CFG 스케일 (기본: 7.5)
+     * @param {number} params.steps - 샘플링 스텝 (기본: 25)
+     * @param {number} params.cfg_scale - CFG 스케일 (Flux 기본: 3.5)
      * @param {boolean} params.enableADetailer - ADetailer 활성화 (기본: true)
      * @returns {Promise<string>} - 이미지 Data URL
      */
@@ -172,21 +172,15 @@ const API = {
                 style,
                 width = 1024,
                 height = 1024,
-                steps = 30,  // SDXL 기본 스텝
-                cfg_scale = 7.5,  // SDXL 기본 CFG
+                steps = 25,  // 🔧 Flux2 최적 스텝: 20~30
+                cfg_scale = 3.5,  // 🔧 Flux2 권장 CFG: 1.5~4.0
                 negative_prompt = 'low quality, blurry, distorted, deformed',
                 enableADetailer = true  // ADetailer 활성화 옵션
             } = params;
 
-            // 🎯 스타일별 모델 자동 선택
-            let modelName = 'juggernautXL_ragnarokBy.safetensors';  // 기본 모델
-
-            if (style === 'lyrical-anime' || style === 'action-anime') {
-                modelName = 'animagineXL40_v4Opt.safetensors';  // 애니메이션 전용
-                console.log('🎌 애니메이션 모델로 전환:', modelName);
-            } else {
-                console.log('🎨 기본 모델 사용:', modelName);
-            }
+            // 🚀 Flux2-Dev FP8 모델 (모든 스타일에 단일 모델 사용)
+            const modelName = 'flux2DevFP8_GGUF_fp8Mixed.safetensors';
+            console.log('🚀 Flux2-Dev FP8 모델 사용:', modelName);
 
             // 모델 변경 (필요 시)
             try {
@@ -230,8 +224,8 @@ const API = {
                 }
             } : {};
 
-            // SDXL 최적 샘플러
-            let samplerName = 'DPM++ 2M Karras';  // SDXL 기본
+            // 🔧 Flux2 최적 샘플러
+            const samplerName = 'Euler';  // Flux 권장: Euler 또는 DPM++ 2M
 
             const requestBody = {
                 prompt: prompt,
@@ -281,7 +275,7 @@ const API = {
     },
 
     /**
-     * 로컬 SD WebUI로 이미지 수정 (img2img) - v2.0 ADetailer 추가
+     * 로컬 SD WebUI로 이미지 수정 (img2img) - v3.0 Flux2-Dev FP8 최적화
      * @param {string} imageUrl - 원본 이미지 URL 또는 Data URL
      * @param {string} editPrompt - 수정 프롬프트
      * @param {number} width - 너비
@@ -291,9 +285,9 @@ const API = {
      */
     async editImageLocal(imageUrl, editPrompt, width = 1024, height = 1024, enableADetailer = true) {
         try {
-            console.log('✏️ 로컬 SD WebUI img2img 호출:', { 
-                editPrompt, 
-                width, 
+            console.log('✏️ 로컬 SD WebUI img2img 호출 (Flux2-Dev FP8):', {
+                editPrompt,
+                width,
                 height,
                 adetailer: enableADetailer ? 'ON' : 'OFF'
             });
@@ -327,10 +321,10 @@ const API = {
                     negative_prompt: 'low quality, blurry, distorted',
                     width: width,
                     height: height,
-                    steps: 30,
-                    cfg_scale: 7.5,
+                    steps: 25,  // 🔧 Flux2 최적 스텝
+                    cfg_scale: 3.5,  // 🔧 Flux2 권장 CFG
                     denoising_strength: 0.5,
-                    sampler_name: 'DPM++ 2M Karras',
+                    sampler_name: 'Euler',  // 🔧 Flux2 최적 샘플러
                     // 🆕 ADetailer 얼굴 보정
                     alwayson_scripts: adetailerConfig
                 })
