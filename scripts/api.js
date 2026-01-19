@@ -212,41 +212,46 @@ const API = {
                 adetailer: enableADetailer ? 'ON' : 'OFF'
             });
 
-            // 🆕 ADetailer 설정
+            // 🆕 ADetailer 설정 (SD WebUI 확장 프로그램 필요)
             const adetailerConfig = enableADetailer ? {
-                ADetailer: {
-                    args: [{
-                        ad_model: "face_yolov8n.pt",  // 얼굴 감지 모델
-                        ad_prompt: "high quality, detailed face, clear eyes, natural skin texture, perfect facial features",
-                        ad_negative_prompt: "low quality, blurry face, distorted face, bad anatomy, deformed eyes, asymmetric face",
-                        ad_denoising_strength: 0.4,  // 보정 강도 (0.3-0.5 권장)
-                        ad_inpaint_only_masked: true,  // 얼굴 영역만 보정
-                        ad_confidence: 0.3,  // 얼굴 감지 신뢰도
-                        ad_dilate_erode: 4,  // 마스크 확장
-                        ad_inpaint_width: 512,
-                        ad_inpaint_height: 512
-                    }]
+                "ADetailer": {
+                    "args": [
+                        {
+                            "ad_model": "face_yolov8n.pt",
+                            "ad_prompt": "high quality, detailed face",
+                            "ad_negative_prompt": "low quality, blurry face",
+                            "ad_denoising_strength": 0.4,
+                            "ad_inpaint_only_masked": true,
+                            "ad_confidence": 0.3
+                        }
+                    ]
                 }
             } : {};
+
+            // 🔧 ADetailer가 없을 경우를 대비한 기본 요청
+            const requestBody = {
+                prompt: prompt,
+                negative_prompt: negative_prompt,
+                width: width,
+                height: height,
+                steps: steps,
+                cfg_scale: cfg_scale,
+                sampler_name: 'DPM++ 2M Karras',
+                batch_size: 1,
+                n_iter: 1
+            };
+
+            // ADetailer 활성화 시에만 추가 (설치되지 않았을 때 422 에러 방지)
+            if (enableADetailer && Object.keys(adetailerConfig).length > 0) {
+                requestBody.alwayson_scripts = adetailerConfig;
+            }
 
             const response = await fetch(`${this.SDWEBUI_URL}/sdapi/v1/txt2img`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    prompt: prompt,
-                    negative_prompt: negative_prompt,
-                    width: width,
-                    height: height,
-                    steps: steps,
-                    cfg_scale: cfg_scale,
-                    sampler_name: 'DPM++ 2M Karras',
-                    batch_size: 1,
-                    n_iter: 1,
-                    // 🆕 ADetailer 얼굴 보정
-                    alwayson_scripts: adetailerConfig
-                })
+                body: JSON.stringify(requestBody)
             });
 
             if (!response.ok) {
@@ -423,7 +428,7 @@ const API = {
                 }]
             };
 
-            // 🆕 JSON Schema 정의
+            // 🆕 JSON Schema 정의 (Gemini API 호환)
             const responseSchema = {
                 type: "object",
                 properties: {
@@ -454,11 +459,15 @@ const API = {
                         }
                     },
                     scenes: {
-                        type: "object",
-                        description: "파트별 장면 수 분석 결과",
-                        additionalProperties: {
+                        type: "array",
+                        description: "파트별 장면 수 분석 결과 배열",
+                        items: {
                             type: "object",
                             properties: {
+                                partName: {
+                                    type: "string",
+                                    description: "파트 이름 (intro, 1, 2, 3...)"
+                                },
                                 charCount: {
                                     type: "integer",
                                     description: "대본 글자 수"
@@ -485,7 +494,7 @@ const API = {
                                     description: "기본 선택 장면 수"
                                 }
                             },
-                            required: ["charCount", "totalScenes", "importantScenes", "minimalScenes", "selectedCount"]
+                            required: ["partName", "charCount", "totalScenes", "importantScenes", "minimalScenes", "selectedCount"]
                         }
                     }
                 },
@@ -529,15 +538,32 @@ ${scriptsJson}
             }
 
             const data = await response.json();
-            
+
             // 🆕 JSON 직접 파싱 (강제 모드이므로 안전)
             const textResponse = data.candidates[0].content.parts[0].text;
             const analysisResult = JSON.parse(textResponse);
-            
+
+            // 🔄 scenes 배열을 객체로 변환 (partName을 키로 사용)
+            if (Array.isArray(analysisResult.scenes)) {
+                const scenesObject = {};
+                analysisResult.scenes.forEach(scene => {
+                    const partName = scene.partName;
+                    scenesObject[partName] = {
+                        charCount: scene.charCount,
+                        visualTriggers: scene.visualTriggers || [],
+                        totalScenes: scene.totalScenes,
+                        importantScenes: scene.importantScenes,
+                        minimalScenes: scene.minimalScenes,
+                        selectedCount: scene.selectedCount
+                    };
+                });
+                analysisResult.scenes = scenesObject;
+            }
+
             console.log('✅ Gemini 분석 완료:', analysisResult);
             console.log(`  - 등장인물: ${analysisResult.characters?.length || 0}명`);
             console.log(`  - 분석 파트: ${Object.keys(analysisResult.scenes || {}).length}개`);
-            
+
             return analysisResult;
 
         } catch (error) {

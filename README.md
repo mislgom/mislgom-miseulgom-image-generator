@@ -152,14 +152,41 @@
 
 ## 🚀 시작하기
 
-### 1. Stable Diffusion WebUI 실행
+### 1. Stable Diffusion WebUI 실행 (CORS 설정 포함)
 
+**⚠️ 중요**: CORS 에러 방지를 위해 아래 옵션을 추가해야 합니다!
+
+#### Windows:
+`webui-user.bat` 파일을 열어서 아래와 같이 수정:
+
+```batch
+set COMMANDLINE_ARGS=--api --cors-allow-origins=*
+```
+
+그 다음 실행:
 ```powershell
 cd C:\stable-diffusion-webui
 .\webui-user.bat
 ```
 
+#### Mac/Linux:
+```bash
+cd stable-diffusion-webui
+./webui.sh --api --cors-allow-origins="*"
+```
+
+#### 대안 (로컬 웹서버 사용):
+```bash
+# Python으로 웹서버 실행
+cd miseulgom-image-generator
+python -m http.server 8080
+
+# 브라우저에서 http://localhost:8080 접속
+```
+
 브라우저에 `http://localhost:7860` 열림 → **API 준비 완료!**
+
+**CORS 설정이 없으면** "CORS policy blocked" 에러 발생합니다.
 
 ### 2. 프로젝트 클론 (또는 다운로드)
 

@@ -252,21 +252,13 @@ const CharacterManager = {
                 width: resolution.width,
                 height: resolution.height,
                 steps: 30,
-                cfg_scale: 7.5
+                cfg_scale: 7.5,
+                enableADetailer: false  // 🔧 ADetailer 비활성화 (422 에러 방지)
             });
             return imageUrl;
         } catch (error) {
             console.error('❌ 로컬 이미지 생성 실패:', error);
-            
-            // 폴백: 데모 이미지
-            const demoImages = [
-                'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop',
-                'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=400&fit=crop',
-                'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&h=400&fit=crop'
-            ];
-            
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            return demoImages[Math.floor(Math.random() * demoImages.length)];
+            throw error;  // 🔧 에러를 상위로 전달 (데모 이미지 사용 방지)
         }
     },
 
