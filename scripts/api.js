@@ -29,8 +29,7 @@ const API = {
     // Gemini API 설정
 
     GEMINI_API_KEY: '', // 사용자가 입력해야 함
-
-    GEMINI_API_URL: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
+    GEMINI_API_URL: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent',
 
 
 
