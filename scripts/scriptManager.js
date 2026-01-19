@@ -70,35 +70,22 @@ const ScriptManager = {
             });
         }
 
-        // 파일 업로드
-        const scriptContent = document.getElementById('script-content');
+        // 파일 업로드 관련 요소
         const fileInput = document.getElementById('script-file-input');
-        const modernUploadBtn = document.getElementById('modern-upload-btn');
+        const uploadFullScriptBtn = document.getElementById('upload-full-script-btn');
 
-        console.log('📋 요소 확인:', {
-            scriptContent: !!scriptContent,
-            fileInput: !!fileInput,
-            modernUploadBtn: !!modernUploadBtn
-        });
-
-        if (modernUploadBtn && fileInput) {
-            modernUploadBtn.addEventListener('click', (e) => {
+        // 🆕 전체 대본 올리기 버튼 (항상 보임)
+        if (uploadFullScriptBtn && fileInput) {
+            uploadFullScriptBtn.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                console.log('📤 업로드 버튼 클릭됨');
-                console.log('📁 파일 입력 요소:', fileInput);
-                console.log('🔧 파일 입력 타입:', fileInput.type);
+                console.log('📤 전체 대본 올리기 버튼 클릭됨');
                 fileInput.click();
-                console.log('✅ fileInput.click() 실행 완료');
             });
-            console.log('✅ 업로드 버튼 이벤트 리스너 등록 완료');
-        } else {
-            console.error('❌ 필수 요소를 찾을 수 없습니다:', {
-                modernUploadBtn: !!modernUploadBtn,
-                fileInput: !!fileInput
-            });
+            console.log('✅ 전체 대본 올리기 버튼 이벤트 리스너 등록 완료');
         }
 
+        // 파일 선택 후 처리
         if (fileInput) {
             fileInput.addEventListener('change', (e) => {
                 console.log('📁 파일 선택됨:', e.target.files);
@@ -110,30 +97,82 @@ const ScriptManager = {
             });
         }
 
-        // 드래그 앤 드롭 (script-content 영역)
-        if (scriptContent) {
-            scriptContent.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                scriptContent.classList.add('drag-over');
-            });
+        // 🆕 파트별 개별 드래그 앤 드롭
+        this.attachPartDropListeners();
+    },
 
-            scriptContent.addEventListener('dragleave', (e) => {
-                e.preventDefault();
-                scriptContent.classList.remove('drag-over');
-            });
+    // 파트별 드래그앤드롭 이벤트 리스너 등록
+    attachPartDropListeners() {
+        // Intro 패널
+        this.attachDropToPanel('intro');
 
-            scriptContent.addEventListener('drop', (e) => {
-                e.preventDefault();
-                scriptContent.classList.remove('drag-over');
-                
-                const file = e.dataTransfer?.files?.[0];
-                if (file && file.type === 'text/plain') {
-                    this.handleFileUpload(file);
-                } else {
-                    UI.showToast('TXT 파일만 업로드 가능합니다', 'error');
-                }
-            });
+        // Part 1~10 패널
+        for (let i = 1; i <= 10; i++) {
+            this.attachDropToPanel(i.toString());
         }
+    },
+
+    // 개별 패널에 드래그앤드롭 이벤트 등록
+    attachDropToPanel(part) {
+        const panel = document.querySelector(`.script-panel[data-part="${part}"]`);
+        if (!panel) return;
+
+        const textarea = panel.querySelector('.script-textarea');
+        if (!textarea) return;
+
+        panel.addEventListener('dragover', (e) => {
+            // 🔧 현재 활성화된 패널만 드롭 허용
+            if (!panel.classList.contains('active')) {
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            panel.classList.add('drag-over');
+        });
+
+        panel.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            panel.classList.remove('drag-over');
+        });
+
+        panel.addEventListener('drop', async (e) => {
+            // 🔧 현재 활성화된 패널만 드롭 허용
+            if (!panel.classList.contains('active')) {
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            panel.classList.remove('drag-over');
+
+            const file = e.dataTransfer?.files?.[0];
+            if (!file) return;
+
+            if (file.type !== 'text/plain') {
+                UI.showToast('TXT 파일만 업로드 가능합니다', 'error');
+                return;
+            }
+
+            try {
+                UI.showToast(`${part === 'intro' ? 'Intro' : 'Part ' + part} 대본 읽는 중...`, 'info');
+
+                // 파일 읽기
+                const text = await this.readFile(file);
+
+                // 해당 파트 textarea에 입력
+                textarea.value = text;
+                this.updateCharCount(textarea);
+                this.saveScript(textarea);
+
+                UI.showToast(`✅ ${part === 'intro' ? 'Intro' : 'Part ' + part}에 대본이 입력되었습니다`, 'success');
+
+                console.log(`📄 파트별 업로드 완료: ${part}`);
+
+            } catch (error) {
+                console.error('❌ 파일 읽기 오류:', error);
+                UI.showToast('파일 읽기 중 오류가 발생했습니다', 'error');
+            }
+        });
     },
 
     // 파트 수 초기화
@@ -183,10 +222,13 @@ const ScriptManager = {
             panel.dataset.part = i.toString();
             panel.innerHTML = `
                 <div class="script-editor">
-                    <textarea 
-                        id="script-part-${i}" 
-                        class="script-textarea" 
-                        placeholder="Part ${i} 대본을 입력하세요... (최대 10,000자)"
+                    <textarea
+                        id="script-part-${i}"
+                        class="script-textarea"
+                        placeholder="💡 Part ${i} 대본을 입력하세요... (최대 10,000자)
+
+📁 이 영역에 파일을 드래그하면 Part ${i}에만 입력됩니다
+📤 전체 대본을 올리려면 상단의 '전체 대본 올리기' 버튼을 사용하세요"
                         maxlength="10000"
                     ></textarea>
                     <div class="script-footer">
@@ -206,6 +248,9 @@ const ScriptManager = {
                     this.saveScript(e.target);
                 });
             }
+
+            // 🆕 드래그앤드롭 이벤트 등록
+            this.attachDropToPanel(i.toString());
         }
 
         console.log(`📝 파트 수 변경: ${count}개`);
@@ -262,13 +307,6 @@ const ScriptManager = {
         const id = textarea.id;
         const part = id.replace('script-', '').replace('part-', '');
         this.state.scripts[part] = textarea.value;
-        
-        // 대본이 입력되면 업로드 영역 숨기기
-        if (textarea.value.trim().length > 0) {
-            this.hideUploadArea();
-        } else {
-            this.showUploadArea();
-        }
     },
 
     // 전체 대본 분석
@@ -447,6 +485,23 @@ const ScriptManager = {
             };
         }
 
+        // 🆕 모달 닫기 버튼
+        const closeBtn = modal.querySelector('.modal-close');
+        const backdrop = modal.querySelector('.modal-backdrop');
+
+        const closeModal = () => {
+            modal.classList.remove('active');
+            document.body.style.overflow = '';
+        };
+
+        if (closeBtn) {
+            closeBtn.onclick = closeModal;
+        }
+
+        if (backdrop) {
+            backdrop.onclick = closeModal;
+        }
+
         // 모달 표시
         modal.classList.add('active');
         document.body.style.overflow = 'hidden';
@@ -498,10 +553,7 @@ const ScriptManager = {
                 }
             }
 
-            // 업로드 영역 숨기기
-            this.hideUploadArea();
-
-            UI.showToast(`✅ ${parts.length}개 파트로 분할되었습니다`, 'success');
+            UI.showToast(`✅ ${parts.length}개 파트로 자동 분할되었습니다`, 'success');
 
             console.log('📄 파일 업로드 완료:', {
                 fileName: file.name,
@@ -619,6 +671,12 @@ const ScriptManager = {
         return scripts;
     },
 
+    // 대본이 업로드되었는지 확인
+    isUploaded() {
+        const scripts = this.getAllScripts();
+        return Object.keys(scripts).length > 0;
+    },
+
     // 상태 저장
     saveState() {
         return {
@@ -669,23 +727,6 @@ const ScriptManager = {
         }
     },
 
-    // 업로드 영역 표시
-    showUploadArea() {
-        const uploadArea = document.querySelector('.modern-upload-area');
-        if (uploadArea) {
-            uploadArea.style.display = 'block';
-            uploadArea.style.pointerEvents = 'auto';
-        }
-    },
-
-    // 업로드 영역 숨기기
-    hideUploadArea() {
-        const uploadArea = document.querySelector('.modern-upload-area');
-        if (uploadArea) {
-            uploadArea.style.display = 'none';
-            uploadArea.style.pointerEvents = 'none';
-        }
-    }
 };
 
 // 전역 함수로 노출
