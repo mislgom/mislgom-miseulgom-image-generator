@@ -352,10 +352,11 @@ const ScriptManager = {
             const result = await API.analyzeScriptWithGemini(scripts);
             console.log('✅ 대본 분석 완료:', result);
             
-            // 🆕 등장인물 자동 추출 (CharacterManager로 전달)
+            // 🆕 등장인물 자동 추출 (CharacterManager로 전달) - v3.0 era 포함
             if (result.characters && result.characters.length > 0) {
                 console.log(`👥 등장인물 ${result.characters.length}명 자동 추출됨`);
-                
+                console.log(`📅 시대 배경: ${result.era || 'joseon'}`);
+
                 // CharacterManager에 등장인물 설정
                 CharacterManager.state.characters = result.characters.map(char => ({
                     name: char.name,
@@ -363,6 +364,7 @@ const ScriptManager = {
                     descriptionKo: char.descriptionKo,
                     descriptionEn: char.descriptionEn,
                     description: char.descriptionEn,  // 기존 호환성
+                    era: char.era || result.era || 'joseon',  // 🆕 시대 정보
                     ethnicity: CharacterManager.state.currentEthnicity,
                     style: CharacterManager.state.currentStyle
                 }));

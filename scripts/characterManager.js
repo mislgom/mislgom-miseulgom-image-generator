@@ -151,13 +151,16 @@ const CharacterManager = {
         }
     },
 
-    // 등장인물 프롬프트 생성 - v2.0 (descriptionKo + descriptionEn 지원)
+    // 등장인물 프롬프트 생성 - v3.0 (era 동적 처리)
     async createCharacterPrompt(character) {
-        const { name, nameEn, description, descriptionKo, descriptionEn, ethnicity, style } = character;
-        
+        const { name, nameEn, description, descriptionKo, descriptionEn, ethnicity, style, era } = character;
+
         // 🆕 한글/영문 설명 우선 사용 (없으면 기존 description 사용)
         const koDesc = descriptionKo || description;
         const enDesc = descriptionEn || description;
+
+        // 🆕 시대 정보 (Gemini가 제공하거나 기본값 joseon)
+        const characterEra = era || 'joseon';
         
         // 인종별 설명
         const ethnicityMap = {
@@ -167,54 +170,76 @@ const CharacterManager = {
             black: 'Black person (African descent)'
         };
 
-        // 스타일별 프롬프트
+        // 🆕 FLUX.1 Dev용 자연스러운 문장형 프롬프트 (시대 정보는 동적으로 추가됨)
         const stylePromptMap = {
             'korean-webtoon': {
-                positive: 'Korean webtoon style, manhwa, digital art, highly detailed, clean sharp outlines, vibrant colors, expressive characters, historical drama scene, masterpiece, best quality, 8k resolution, (Joseon dynasty era:1.2)',
-                negative: 'photorealistic, 3d render, sketch, low quality, ugly, distorted face, bad anatomy, (modern architecture, cars, sci-fi, cyberpunk, western clothing, glasses, suit, neon lights:1.5), text, watermark'
+                positive: 'A digital illustration in Korean webtoon manhwa style with clean sharp outlines and vibrant colors, expressive character with detailed features, professional digital art',
+                negative: 'photorealistic, 3d render, sketch, ugly face, distorted anatomy, Chinese style, Japanese anime, modern architecture, cars, western clothing, glasses, suit, neon lights, text, watermark'
             },
             'folklore-illustration': {
-                positive: 'Korean folklore storybook illustration, warm pastel tones, soft edges, hand-drawn texture, retro aesthetic, whimsical, emotional, watercolor texture, masterpiece, fairy tale atmosphere, (Joseon dynasty era:1.2)',
-                negative: '3d render, sharp focus, photorealistic, cyberpunk, horror, dark, low quality, (modern architecture, cars, sci-fi, electricity, western clothing, suit:1.5), text, watermark'
+                positive: 'A Korean folklore storybook illustration with warm pastel tones and soft edges, hand-drawn texture with whimsical emotional atmosphere, watercolor fairy tale aesthetic',
+                negative: '3d render, photorealistic, cyberpunk, horror, dark mood, Chinese painting, Japanese ukiyo-e, modern architecture, cars, electricity, western clothing, suit, text, watermark'
             },
             'traditional-ink': {
-                positive: 'Korean traditional ink wash painting, sumi-e style, watercolor on Hanji paper, artistic brush strokes, ethereal atmosphere, muted colors, historical, oriental painting, masterpiece, (Joseon dynasty era:1.2)',
-                negative: 'anime, cartoon, 3d render, bright neon colors, modern, (modern building, cars, sci-fi, robot, spaceship, western clothing, suit, glasses:1.5), low quality, ugly, text, watermark'
+                positive: 'A Korean traditional ink wash painting in sumi-e style on Hanji paper, artistic brush strokes with ethereal atmosphere and muted colors, oriental painting aesthetic',
+                negative: 'anime, cartoon, 3d render, bright neon colors, modern style, Chinese gongbi, Japanese sumi-e, modern buildings, cars, robots, spaceships, western clothing, glasses, text, watermark'
             },
             'simple-2d-cartoon': {
-                positive: 'Simple 2d cartoon style, flat color, thick outlines, educational comic style, korean manhwa, clean vector art, minimal shading, cute character design, (Joseon dynasty era:1.2)',
-                negative: 'realistic, 3d, detailed shading, oil painting, watercolor, sketch, complex, low quality, ugly, (modern architecture, cars, sci-fi:1.5), text, watermark'
+                positive: 'A simple 2D cartoon illustration in Korean manhwa style with flat colors and thick outlines, clean vector art with minimal shading and cute character design',
+                negative: 'realistic, 3d, detailed shading, oil painting, complex rendering, Chinese donghua, Japanese anime, modern architecture, cars, sci-fi elements, text, watermark'
             },
             'lyrical-anime': {
                 positive: 'Makoto Shinkai style, anime still, breathtaking scenery, beautiful lighting, lens flare, volumetric fog, highly detailed cloud and sky, sentimental atmosphere, vibrant colors, masterpiece, best quality, 8k, highres',
-                negative: 'low quality, worst quality, sketch, ugly face, distorted, bad anatomy, monochrome, grayscale, real photo, photorealistic, 3d render'
+                negative: 'low quality, worst quality, sketch, ugly face, distorted, bad anatomy, monochrome, grayscale, real photo, photorealistic, 3d render, Chinese donghua'
             },
             'action-anime': {
                 positive: 'Ufotable anime style, high contrast, dynamic angle, bold lines, intense atmosphere, cel shading, visual effects, highly detailed, masterpiece, best quality, action scene, 4k',
-                negative: 'soft, pastel, blurry, sketch, low quality, ugly, distorted, bad anatomy, watercolor, minimalist, photorealistic, real photo'
+                negative: 'soft, pastel, blurry, sketch, low quality, ugly, distorted, bad anatomy, watercolor, minimalist, photorealistic, real photo, Chinese donghua'
             },
             'documentary-photo': {
-                positive: 'Japanese slice of life documentary photography, candid shot, raw photo, natural lighting, realistic skin texture, wrinkles, detailed pores, cinematic lighting, bokeh, shot on 35mm, masterpiece, photorealistic, 8k uhd, (Showa era atmosphere:1.1)',
-                negative: 'anime, cartoon, illustration, painting, 3d render, airbrushed, smooth skin, makeup, plastic, fake, low quality, blurry, text, watermark'
+                positive: 'A documentary photography in Korean slice of life style, candid shot with natural lighting, realistic skin texture and pores visible, cinematic lighting with shallow depth of field, shot on 35mm film',
+                negative: 'anime, cartoon, illustration, painting, 3d render, airbrushed skin, heavy makeup, plastic look, fake, Chinese photography style, Japanese photography style, text, watermark'
             },
             'cinematic-movie': {
-                positive: 'Cinematic movie scene, blockbuster look, dramatic lighting, color graded, shallow depth of field, highly detailed, photorealistic, masterpiece, best quality, 8k uhd, professional photography',
-                negative: 'anime, cartoon, sketch, drawing, 3d render, low quality, ugly, distorted, bad anatomy, blurry, text, watermark'
+                positive: 'A cinematic movie scene with blockbuster production quality, dramatic lighting with professional color grading, shallow depth of field with highly detailed textures, photorealistic cinematography',
+                negative: 'anime, cartoon, sketch, drawing, 3d render, ugly composition, distorted perspective, amateur photography, Chinese cinema style, text, watermark'
             },
             'scifi-fantasy': {
-                positive: 'Sci-fi cyberpunk world OR high fantasy world, Unreal Engine 5 render, octane render, neon lights, futuristic, intricate details, 3d digital art, cinematic lighting, masterpiece, best quality, 8k',
-                negative: 'sketch, drawing, low quality, blurry, simple background, ugly, distorted, bad anatomy, 2d, flat color'
+                positive: 'A sci-fi cyberpunk or high fantasy scene with futuristic elements, neon lights and advanced technology, intricate details with cinematic lighting, digital art rendering',
+                negative: 'sketch, drawing, simple background, ugly design, distorted anatomy, flat composition, Chinese sci-fi style, Japanese mecha style, text, watermark'
             }
         };
 
         const ethnicityDesc = ethnicityMap[ethnicity] || ethnicityMap.korean;
         const stylePrompt = stylePromptMap[style] || stylePromptMap['korean-webtoon'];
 
-        // 영문 프롬프트 (스타일 프롬프트 + 인물 설명)
-        const promptEn = `Portrait of ${nameEn || name}, ${ethnicityDesc}, ${enDesc}, ${stylePrompt.positive}`;
+        // 🆕 시대별 프롬프트 (조선시대/현대/미래/판타지)
+        const eraPromptMap = {
+            joseon: {
+                positive: 'set in Joseon dynasty era Korea, traditional historical setting with Korean cultural elements',
+                negative: 'modern architecture, cars, skyscrapers, contemporary clothing, glasses, suit, tie, sneakers, smartphones, modern technology'
+            },
+            modern: {
+                positive: 'set in modern contemporary Korea, present-day setting with urban elements',
+                negative: 'traditional hanbok, gat, historical clothing, sangtu hairstyle, joseon era, ancient architecture'
+            },
+            future: {
+                positive: 'set in futuristic Korea, sci-fi cyberpunk setting with advanced technology and neon lights',
+                negative: 'traditional hanbok, historical clothing, ancient architecture, rustic elements'
+            },
+            fantasy: {
+                positive: 'set in high fantasy world with magical elements, mystical atmosphere',
+                negative: 'modern technology, cars, smartphones, contemporary clothing'
+            }
+        };
 
-        // 네거티브 프롬프트
-        const negativePrompt = stylePrompt.negative;
+        const eraPrompt = eraPromptMap[characterEra] || eraPromptMap.joseon;
+
+        // 영문 프롬프트 (인물 + 시대 + 스타일)
+        const promptEn = `Portrait of ${nameEn || name}, ${ethnicityDesc}, ${enDesc}, ${eraPrompt.positive}, ${stylePrompt.positive}`;
+
+        // 네거티브 프롬프트 (시대별 + 스타일별)
+        const negativePrompt = `${eraPrompt.negative}, ${stylePrompt.negative}`;
 
         // 한글 프롬프트
         const styleNameMap = {
@@ -251,8 +276,8 @@ const CharacterManager = {
                 style: this.state.currentStyle,  // ← 스타일 전달
                 width: resolution.width,
                 height: resolution.height,
-                steps: 30,
-                cfg_scale: 7.5,
+                steps: 25,  // 🔧 FLUX 최적화
+                cfg_scale: 3.5,  // 🔧 FLUX 권장 CFG
                 enableADetailer: false  // 🔧 ADetailer 비활성화 (422 에러 방지)
             });
             return imageUrl;
@@ -483,7 +508,7 @@ const CharacterManager = {
         }
     },
 
-    // 등장인물 버전 복원
+    // 등장인물 버전 복원 - v3.0 (모달 내 실시간 업데이트)
     restoreCharacterVersion(character, version) {
         const historyItem = character.history.find(h => h.version === version);
         if (!historyItem) return;
@@ -493,14 +518,19 @@ const CharacterManager = {
         character.promptEn = historyItem.promptEn;
 
         this.renderCharacters();
-        UI.showToast(`v${version}로 복원되었습니다`, 'success');
 
-        // 모달 닫기
-        const modal = document.getElementById('image-detail-modal');
-        if (modal) {
-            modal.classList.remove('active');
-            document.body.style.overflow = '';
-        }
+        // ✅ 모달 내 이미지 및 프롬프트 실시간 업데이트
+        const modalImage = document.getElementById('modal-image');
+        const promptKo = document.getElementById('modal-prompt-ko');
+        const promptEn = document.getElementById('modal-prompt-en');
+
+        if (modalImage) modalImage.src = historyItem.imageUrl;
+        if (promptKo) promptKo.value = historyItem.promptKo || '';
+        if (promptEn) promptEn.value = historyItem.promptEn || '';
+
+        UI.showToast(`✅ v${version}로 복원되었습니다`, 'success');
+
+        // ✅ 모달은 열린 상태 유지
     },
 
     // 등장인물 이미지 다운로드

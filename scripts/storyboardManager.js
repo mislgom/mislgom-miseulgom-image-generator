@@ -137,6 +137,48 @@ const StoryboardManager = {
         }
     },
 
+    // 스타일별 프롬프트 맵 가져오기
+    getStylePromptMap() {
+        return {
+            'korean-webtoon': {
+                positive: 'A digital illustration in Korean webtoon manhwa style with clean sharp outlines and vibrant colors, expressive characters with detailed features, professional digital art',
+                negative: 'photorealistic, 3d render, sketch, ugly face, distorted anatomy, Chinese style, Japanese anime, modern architecture, cars, western clothing, glasses, suit, neon lights, text, watermark'
+            },
+            'folklore-illustration': {
+                positive: 'A Korean folklore storybook illustration with warm pastel tones and soft edges, hand-drawn texture with whimsical emotional atmosphere, watercolor fairy tale aesthetic',
+                negative: '3d render, photorealistic, cyberpunk, horror, dark mood, Chinese painting, Japanese ukiyo-e, modern architecture, cars, electricity, western clothing, suit, text, watermark'
+            },
+            'traditional-ink': {
+                positive: 'A Korean traditional ink wash painting in sumi-e style on Hanji paper, artistic brush strokes with ethereal atmosphere and muted colors, oriental painting aesthetic',
+                negative: 'anime, cartoon, 3d render, bright neon colors, modern style, Chinese gongbi, Japanese sumi-e, modern buildings, cars, robots, spaceships, western clothing, glasses, text, watermark'
+            },
+            'simple-2d-cartoon': {
+                positive: 'A simple 2D cartoon illustration in Korean manhwa style with flat colors and thick outlines, clean vector art with minimal shading and cute character design',
+                negative: 'realistic, 3d, detailed shading, oil painting, complex rendering, Chinese donghua, Japanese anime, modern architecture, cars, sci-fi elements, text, watermark'
+            },
+            'lyrical-anime': {
+                positive: 'Makoto Shinkai style, anime still, breathtaking scenery, beautiful lighting, lens flare, volumetric fog, highly detailed cloud and sky, sentimental atmosphere, vibrant colors, masterpiece, best quality, 8k, highres',
+                negative: 'low quality, worst quality, sketch, ugly face, distorted, bad anatomy, monochrome, grayscale, real photo, photorealistic, 3d render, Chinese donghua'
+            },
+            'action-anime': {
+                positive: 'Ufotable anime style, high contrast, dynamic angle, bold lines, intense atmosphere, cel shading, visual effects, highly detailed, masterpiece, best quality, action scene, 4k',
+                negative: 'soft, pastel, blurry, sketch, low quality, ugly, distorted, bad anatomy, watercolor, minimalist, photorealistic, real photo, Chinese donghua'
+            },
+            'documentary-photo': {
+                positive: 'A documentary photography in Korean slice of life style, candid shot with natural lighting, realistic skin texture and pores visible, cinematic lighting with shallow depth of field, shot on 35mm film',
+                negative: 'anime, cartoon, illustration, painting, 3d render, airbrushed skin, heavy makeup, plastic look, fake, Chinese photography style, Japanese photography style, text, watermark'
+            },
+            'cinematic-movie': {
+                positive: 'A cinematic movie scene with blockbuster production quality, dramatic lighting with professional color grading, shallow depth of field with highly detailed textures, photorealistic cinematography',
+                negative: 'anime, cartoon, sketch, drawing, 3d render, ugly composition, distorted perspective, amateur photography, Chinese cinema style, text, watermark'
+            },
+            'scifi-fantasy': {
+                positive: 'A sci-fi cyberpunk or high fantasy scene with futuristic elements, neon lights and advanced technology, intricate details with cinematic lighting, digital art rendering',
+                negative: 'sketch, drawing, simple background, ugly design, distorted anatomy, flat composition, Chinese sci-fi style, Japanese mecha style, text, watermark'
+            }
+        };
+    },
+
     // 파트별 장면 수 제안
     async suggestSceneCount(parts) {
         // 간단한 알고리즘: 대본 길이에 비례
@@ -171,57 +213,63 @@ const StoryboardManager = {
         return config;
     },
 
-    // 장면 프롬프트 생성
+    // 장면 프롬프트 생성 - v3.0 (Gemini로 등장인물 일관성 유지)
     async createScenePrompt(segment) {
         const text = segment.fullText;
         const currentStyle = CharacterManager.state.currentStyle;
 
-        // 스타일별 프롬프트
-        const stylePromptMap = {
-            'korean-webtoon': {
-                positive: 'Korean webtoon style, manhwa, digital art, highly detailed, clean sharp outlines, vibrant colors, expressive characters, historical drama scene, masterpiece, best quality, 8k resolution, (Joseon dynasty era:1.2)',
-                negative: 'photorealistic, 3d render, sketch, low quality, ugly, distorted face, bad anatomy, (modern architecture, cars, sci-fi, cyberpunk, western clothing, glasses, suit, neon lights:1.5), text, watermark'
-            },
-            'folklore-illustration': {
-                positive: 'Korean folklore storybook illustration, warm pastel tones, soft edges, hand-drawn texture, retro aesthetic, whimsical, emotional, watercolor texture, masterpiece, fairy tale atmosphere, (Joseon dynasty era:1.2)',
-                negative: '3d render, sharp focus, photorealistic, cyberpunk, horror, dark, low quality, (modern architecture, cars, sci-fi, electricity, western clothing, suit:1.5), text, watermark'
-            },
-            'traditional-ink': {
-                positive: 'Korean traditional ink wash painting, sumi-e style, watercolor on Hanji paper, artistic brush strokes, ethereal atmosphere, muted colors, historical, oriental painting, masterpiece, (Joseon dynasty era:1.2)',
-                negative: 'anime, cartoon, 3d render, bright neon colors, modern, (modern building, cars, sci-fi, robot, spaceship, western clothing, suit, glasses:1.5), low quality, ugly, text, watermark'
-            },
-            'simple-2d-cartoon': {
-                positive: 'Simple 2d cartoon style, flat color, thick outlines, educational comic style, korean manhwa, clean vector art, minimal shading, cute character design, (Joseon dynasty era:1.2)',
-                negative: 'realistic, 3d, detailed shading, oil painting, watercolor, sketch, complex, low quality, ugly, (modern architecture, cars, sci-fi:1.5), text, watermark'
-            },
-            'lyrical-anime': {
-                positive: 'Makoto Shinkai style, anime still, breathtaking scenery, beautiful lighting, lens flare, volumetric fog, highly detailed cloud and sky, sentimental atmosphere, vibrant colors, masterpiece, best quality, 8k, highres',
-                negative: 'low quality, worst quality, sketch, ugly face, distorted, bad anatomy, monochrome, grayscale, real photo, photorealistic, 3d render'
-            },
-            'action-anime': {
-                positive: 'Ufotable anime style, high contrast, dynamic angle, bold lines, intense atmosphere, cel shading, visual effects, highly detailed, masterpiece, best quality, action scene, 4k',
-                negative: 'soft, pastel, blurry, sketch, low quality, ugly, distorted, bad anatomy, watercolor, minimalist, photorealistic, real photo'
-            },
-            'documentary-photo': {
-                positive: 'Japanese slice of life documentary photography, candid shot, raw photo, natural lighting, realistic skin texture, wrinkles, detailed pores, cinematic lighting, bokeh, shot on 35mm, masterpiece, photorealistic, 8k uhd, (Showa era atmosphere:1.1)',
-                negative: 'anime, cartoon, illustration, painting, 3d render, airbrushed, smooth skin, makeup, plastic, fake, low quality, blurry, text, watermark'
-            },
-            'cinematic-movie': {
-                positive: 'Cinematic movie scene, blockbuster look, dramatic lighting, color graded, shallow depth of field, highly detailed, photorealistic, masterpiece, best quality, 8k uhd, professional photography',
-                negative: 'anime, cartoon, sketch, drawing, 3d render, low quality, ugly, distorted, bad anatomy, blurry, text, watermark'
-            },
-            'scifi-fantasy': {
-                positive: 'Sci-fi cyberpunk world OR high fantasy world, Unreal Engine 5 render, octane render, neon lights, futuristic, intricate details, 3d digital art, cinematic lighting, masterpiece, best quality, 8k',
-                negative: 'sketch, drawing, low quality, blurry, simple background, ugly, distorted, bad anatomy, 2d, flat color'
-            }
-        };
+        // 🆕 이 장면에 등장하는 인물 감지
+        const characters = this.detectCharactersInSegment(text);
 
+        // 🆕 시대 정보 (첫 번째 등장인물의 era 또는 기본값)
+        const era = characters.length > 0 && characters[0].era
+            ? characters[0].era
+            : 'joseon';
+
+        // 🆕 Gemini API로 장면 프롬프트 생성 (등장인물 정보 포함)
+        if (API.GEMINI_API_KEY && characters.length > 0) {
+            try {
+                const geminiPrompt = await API.generateScenePromptWithGemini({
+                    scriptText: text,
+                    characters: characters,
+                    style: currentStyle,
+                    era: era
+                });
+
+                if (geminiPrompt) {
+                    console.log('✅ Gemini 장면 프롬프트 사용 (등장인물 일관성 유지)');
+
+                    // 스타일 프롬프트 추가
+                    const stylePromptMap = this.getStylePromptMap();
+                    const stylePrompt = stylePromptMap[currentStyle] || stylePromptMap['korean-webtoon'];
+
+                    return {
+                        en: `${geminiPrompt.en}, ${stylePrompt.positive}`,
+                        ko: geminiPrompt.ko,
+                        negative: `${geminiPrompt.negative}, ${stylePrompt.negative}`
+                    };
+                }
+            } catch (error) {
+                console.warn('⚠️ Gemini 장면 프롬프트 생성 실패, 규칙 기반 사용:', error);
+            }
+        }
+
+        // ⚠️ 규칙 기반 폴백 (Gemini 없을 때)
+        console.warn('⚠️ Gemini API 없음 또는 등장인물 없음, 규칙 기반 프롬프트 사용');
+
+        const stylePromptMap = this.getStylePromptMap();
         const stylePrompt = stylePromptMap[currentStyle] || stylePromptMap['korean-webtoon'];
 
-        // 간단한 키워드 추출
-        const keywords = this.extractKeywords(text);
+        // 개선된 키워드 추출 (장소, 시간, 행동 등)
+        const keywords = this.extractSceneKeywords(text);
 
-        const promptEn = `${keywords.join(', ')}, ${stylePrompt.positive}`;
+        // 등장인물 정보 추가 (있으면)
+        let characterDesc = '';
+        if (characters.length > 0) {
+            characterDesc = `featuring ${characters.map(c => c.nameEn).join(' and ')}`;
+        }
+
+        const promptEn = `${keywords}, ${characterDesc}, ${stylePrompt.positive}`.trim();
         const negativePrompt = stylePrompt.negative;
         const promptKo = `${text.substring(0, 100)}... 장면, ${currentStyle} 스타일`;
 
@@ -232,11 +280,56 @@ const StoryboardManager = {
         };
     },
 
-    // 키워드 추출 (간단한 버전)
-    extractKeywords(text) {
-        // 실제로는 AI로 분석
-        const keywords = ['Korean historical drama', 'traditional scene'];
-        return keywords;
+    // 개선된 장면 키워드 추출 (규칙 기반)
+    extractSceneKeywords(text) {
+        const keywords = [];
+
+        // 시간대 감지
+        if (text.includes('밤') || text.includes('저녁') || text.includes('야간')) {
+            keywords.push('night time scene with dark atmosphere');
+        } else if (text.includes('아침') || text.includes('새벽')) {
+            keywords.push('morning scene with soft lighting');
+        } else if (text.includes('낮') || text.includes('오후')) {
+            keywords.push('daytime scene with bright natural lighting');
+        }
+
+        // 장소 감지
+        if (text.includes('숲') || text.includes('산')) {
+            keywords.push('forest or mountain setting');
+        } else if (text.includes('방') || text.includes('집') || text.includes('실내')) {
+            keywords.push('indoor traditional Korean room');
+        } else if (text.includes('거리') || text.includes('시장')) {
+            keywords.push('Korean street market scene');
+        } else if (text.includes('궁궐') || text.includes('대궐')) {
+            keywords.push('royal palace setting');
+        }
+
+        // 행동/장면 감지
+        if (text.includes('싸우') || text.includes('전투') || text.includes('격투')) {
+            keywords.push('intense action fighting scene');
+        } else if (text.includes('대화') || text.includes('말하') || text.includes('이야기')) {
+            keywords.push('conversation scene with characters talking');
+        } else if (text.includes('걷') || text.includes('달리') || text.includes('이동')) {
+            keywords.push('movement scene with characters walking');
+        } else if (text.includes('앉') || text.includes('서')) {
+            keywords.push('stationary scene with characters sitting or standing');
+        }
+
+        // 감정/분위기 감지
+        if (text.includes('슬프') || text.includes('우') || text.includes('눈물')) {
+            keywords.push('sad emotional atmosphere');
+        } else if (text.includes('웃') || text.includes('즐거') || text.includes('기쁨')) {
+            keywords.push('happy joyful atmosphere');
+        } else if (text.includes('긴장') || text.includes('위험') || text.includes('두려')) {
+            keywords.push('tense dramatic atmosphere');
+        }
+
+        // 기본 키워드 (아무것도 없으면)
+        if (keywords.length === 0) {
+            keywords.push('Korean historical drama scene');
+        }
+
+        return keywords.join(', ');
     },
 
     // 장면 이미지 생성
@@ -252,8 +345,8 @@ const StoryboardManager = {
                 style: CharacterManager.state.currentStyle,  // ← 스타일 전달
                 width: resolution.width,
                 height: resolution.height,
-                steps: 30,
-                cfg_scale: 7.5
+                steps: 25,  // 🔧 FLUX 최적화
+                cfg_scale: 3.5  // 🔧 FLUX 권장 CFG
             });
             return imageUrl;
         } catch (error) {
