@@ -391,8 +391,10 @@ const API = {
         if (!this.GEMINI_API_KEY) {
             console.warn('⚠️ Gemini API 키가 설정되지 않음. 규칙 기반 분석 사용');
             return this.analyzeScriptRuleBased(scripts);
+            const error = new Error('Gemini API 키가 설정되지 않았습니다.');
+            console.error('❌ Gemini API 키 누락:', error);
+            throw error;
         }
-
         try {
             const scriptsJson = JSON.stringify(scripts, null, 2);
 
@@ -566,11 +568,14 @@ ${scriptsJson}
 
             return analysisResult;
 
-        } catch (error) {
+      } catch (error) {
             console.error('❌ Gemini API 오류, 규칙 기반 폴백:', error);
             return this.analyzeScriptRuleBased(scripts);
+            console.error('❌ Gemini API 오류:', error);
+            throw error;
         }
     },
+
 
     /**
      * 규칙 기반 대본 분석 (폴백) - v2.0 (등장인물 + 장면 수)
