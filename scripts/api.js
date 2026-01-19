@@ -10,7 +10,7 @@ const API = {
         : 'https://miseulgom-backend.railway.app',
 
     // Stable Diffusion WebUI URL
-    SDWEBUI_URL: 'http://localhost:7860',
+    SDWEBUI_URL: window.location.origin + '/sdapi',
 
     // Gemini API 설정
     GEMINI_API_KEY: '', // 사용자가 입력해야 함
