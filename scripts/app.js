@@ -686,7 +686,7 @@ const App = {
         
         try {
             // Stable Diffusion WebUI API 확인
-            const response = await fetch('http://localhost:7860/sdapi/v1/options', {
+            const response = await fetch(`${API.SDWEBUI_URL}/v1/options`, {
                 method: 'GET',
                 mode: 'cors'
             });
