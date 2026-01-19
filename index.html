@@ -324,6 +324,10 @@
                     <div class="section-actions">
                         <!-- 숨겨진 파일 입력 (접근성 유지) -->
                         <input type="file" id="script-file-input" accept=".txt" style="position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0;">
+                        <button id="upload-full-script-btn" class="btn btn-secondary">
+                            <span class="btn-icon">📤</span>
+                            <span class="btn-text">전체 대본 올리기</span>
+                        </button>
                         <button id="analyze-script-btn" class="btn btn-primary">
                             <span class="btn-icon">🔍</span>
                             <span class="btn-text">종합 대본 분석</span>
@@ -343,18 +347,6 @@
 
                 <!-- 대본 입력 영역 (스크롤 가능) -->
                 <div id="script-content" class="script-content" data-drop-zone="true">
-                    <!-- 🆕 모던한 업로드 영역 -->
-                    <div class="modern-upload-area">
-                        <button class="upload-primary-btn" id="modern-upload-btn">
-                            <span class="upload-btn-icon">📤</span>
-                            <span class="upload-btn-text">전체 대본 올리기 (자동 파트 분할)</span>
-                        </button>
-                        <div class="upload-options">
-                            <span class="upload-option-text">전체 대본을 "파트 1", "Part 2" 등으로 구분하여 작성하면 자동으로 나눠집니다</span>
-                            <span class="upload-hint-small">💡 파트별로 따로 올리려면 해당 탭을 클릭한 후 파일을 드래그하세요</span>
-                        </div>
-                    </div>
-
                     <!-- Intro -->
                     <div class="script-panel active" data-part="intro">
                         <div class="script-editor">
@@ -363,8 +355,8 @@
                                 class="script-textarea"
                                 placeholder="💡 Intro (콜드오픈) 대본을 입력하세요... (최대 10,000자)
 
-📁 파일을 이 영역에 드래그하면 Intro에만 입력됩니다
-📤 전체 대본을 올리려면 위의 '전체 대본 올리기' 버튼을 사용하세요"
+📁 이 영역에 파일을 드래그하면 Intro에만 입력됩니다
+📤 전체 대본을 올리려면 상단의 '전체 대본 올리기' 버튼을 사용하세요"
                                 maxlength="10000"
                             ></textarea>
                             <div class="script-footer">
@@ -383,8 +375,8 @@
                                 class="script-textarea"
                                 placeholder="💡 Part 1 대본을 입력하세요... (최대 10,000자)
 
-📁 파일을 이 영역에 드래그하면 Part 1에만 입력됩니다
-📤 전체 대본을 올리려면 위의 '전체 대본 올리기' 버튼을 사용하세요"
+📁 이 영역에 파일을 드래그하면 Part 1에만 입력됩니다
+📤 전체 대본을 올리려면 상단의 '전체 대본 올리기' 버튼을 사용하세요"
                                 maxlength="10000"
                             ></textarea>
                             <div class="script-footer">
@@ -402,8 +394,8 @@
                                 class="script-textarea" 
                                 placeholder="💡 Part 2 대본을 입력하세요... (최대 10,000자)
 
-📁 파일을 이 영역에 드래그하면 Part 2에만 입력됩니다
-📤 전체 대본을 올리려면 위의 '전체 대본 올리기' 버튼을 사용하세요"
+📁 이 영역에 파일을 드래그하면 Part 2에만 입력됩니다
+📤 전체 대본을 올리려면 상단의 '전체 대본 올리기' 버튼을 사용하세요"
                                 maxlength="10000"
                             ></textarea>
                             <div class="script-footer">
@@ -421,8 +413,8 @@
                                 class="script-textarea" 
                                 placeholder="💡 Part 3 대본을 입력하세요... (최대 10,000자)
 
-📁 파일을 이 영역에 드래그하면 Part 3에만 입력됩니다
-📤 전체 대본을 올리려면 위의 '전체 대본 올리기' 버튼을 사용하세요"
+📁 이 영역에 파일을 드래그하면 Part 3에만 입력됩니다
+📤 전체 대본을 올리려면 상단의 '전체 대본 올리기' 버튼을 사용하세요"
                                 maxlength="10000"
                             ></textarea>
                             <div class="script-footer">
@@ -440,8 +432,8 @@
                                 class="script-textarea" 
                                 placeholder="💡 Part 4 대본을 입력하세요... (최대 10,000자)
 
-📁 파일을 이 영역에 드래그하면 Part 4에만 입력됩니다
-📤 전체 대본을 올리려면 위의 '전체 대본 올리기' 버튼을 사용하세요"
+📁 이 영역에 파일을 드래그하면 Part 4에만 입력됩니다
+📤 전체 대본을 올리려면 상단의 '전체 대본 올리기' 버튼을 사용하세요"
                                 maxlength="10000"
                             ></textarea>
                             <div class="script-footer">
@@ -459,8 +451,8 @@
                                 class="script-textarea" 
                                 placeholder="💡 Part 5 대본을 입력하세요... (최대 10,000자)
 
-📁 파일을 이 영역에 드래그하면 Part 5에만 입력됩니다
-📤 전체 대본을 올리려면 위의 '전체 대본 올리기' 버튼을 사용하세요"
+📁 이 영역에 파일을 드래그하면 Part 5에만 입력됩니다
+📤 전체 대본을 올리려면 상단의 '전체 대본 올리기' 버튼을 사용하세요"
                                 maxlength="10000"
                             ></textarea>
                             <div class="script-footer">

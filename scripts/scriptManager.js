@@ -70,35 +70,22 @@ const ScriptManager = {
             });
         }
 
-        // 파일 업로드
-        const scriptContent = document.getElementById('script-content');
+        // 파일 업로드 관련 요소
         const fileInput = document.getElementById('script-file-input');
-        const modernUploadBtn = document.getElementById('modern-upload-btn');
+        const uploadFullScriptBtn = document.getElementById('upload-full-script-btn');
 
-        console.log('📋 요소 확인:', {
-            scriptContent: !!scriptContent,
-            fileInput: !!fileInput,
-            modernUploadBtn: !!modernUploadBtn
-        });
-
-        if (modernUploadBtn && fileInput) {
-            modernUploadBtn.addEventListener('click', (e) => {
+        // 🆕 전체 대본 올리기 버튼 (항상 보임)
+        if (uploadFullScriptBtn && fileInput) {
+            uploadFullScriptBtn.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                console.log('📤 업로드 버튼 클릭됨');
-                console.log('📁 파일 입력 요소:', fileInput);
-                console.log('🔧 파일 입력 타입:', fileInput.type);
+                console.log('📤 전체 대본 올리기 버튼 클릭됨');
                 fileInput.click();
-                console.log('✅ fileInput.click() 실행 완료');
             });
-            console.log('✅ 업로드 버튼 이벤트 리스너 등록 완료');
-        } else {
-            console.error('❌ 필수 요소를 찾을 수 없습니다:', {
-                modernUploadBtn: !!modernUploadBtn,
-                fileInput: !!fileInput
-            });
+            console.log('✅ 전체 대본 올리기 버튼 이벤트 리스너 등록 완료');
         }
 
+        // 파일 선택 후 처리
         if (fileInput) {
             fileInput.addEventListener('change', (e) => {
                 console.log('📁 파일 선택됨:', e.target.files);
@@ -177,9 +164,6 @@ const ScriptManager = {
                 this.updateCharCount(textarea);
                 this.saveScript(textarea);
 
-                // 업로드 영역 숨기기
-                this.hideUploadArea();
-
                 UI.showToast(`✅ ${part === 'intro' ? 'Intro' : 'Part ' + part}에 대본이 입력되었습니다`, 'success');
 
                 console.log(`📄 파트별 업로드 완료: ${part}`);
@@ -243,8 +227,8 @@ const ScriptManager = {
                         class="script-textarea"
                         placeholder="💡 Part ${i} 대본을 입력하세요... (최대 10,000자)
 
-📁 파일을 이 영역에 드래그하면 Part ${i}에만 입력됩니다
-📤 전체 대본을 올리려면 위의 '전체 대본 올리기' 버튼을 사용하세요"
+📁 이 영역에 파일을 드래그하면 Part ${i}에만 입력됩니다
+📤 전체 대본을 올리려면 상단의 '전체 대본 올리기' 버튼을 사용하세요"
                         maxlength="10000"
                     ></textarea>
                     <div class="script-footer">
@@ -295,9 +279,6 @@ const ScriptManager = {
                 panel.classList.remove('active');
             }
         });
-
-        // 🆕 업로드 영역 표시 여부 업데이트
-        this.updateUploadAreaVisibility();
     },
 
     // 글자 수 업데이트
@@ -326,9 +307,6 @@ const ScriptManager = {
         const id = textarea.id;
         const part = id.replace('script-', '').replace('part-', '');
         this.state.scripts[part] = textarea.value;
-
-        // 🆕 현재 파트의 대본 유무에 따라 업로드 영역 표시/숨김
-        this.updateUploadAreaVisibility();
     },
 
     // 전체 대본 분석
@@ -575,10 +553,7 @@ const ScriptManager = {
                 }
             }
 
-            // 업로드 영역 숨기기
-            this.hideUploadArea();
-
-            UI.showToast(`✅ ${parts.length}개 파트로 분할되었습니다`, 'success');
+            UI.showToast(`✅ ${parts.length}개 파트로 자동 분할되었습니다`, 'success');
 
             console.log('📄 파일 업로드 완료:', {
                 fileName: file.name,
@@ -752,36 +727,6 @@ const ScriptManager = {
         }
     },
 
-    // 🆕 업로드 영역 표시 여부 업데이트 (현재 파트 기준)
-    updateUploadAreaVisibility() {
-        const currentPart = this.state.currentPart;
-        const textareaId = currentPart === 'intro' ? 'script-intro' : `script-part-${currentPart}`;
-        const textarea = document.getElementById(textareaId);
-
-        if (textarea && textarea.value.trim().length > 0) {
-            this.hideUploadArea();
-        } else {
-            this.showUploadArea();
-        }
-    },
-
-    // 업로드 영역 표시
-    showUploadArea() {
-        const uploadArea = document.querySelector('.modern-upload-area');
-        if (uploadArea) {
-            uploadArea.style.display = 'block';
-            uploadArea.style.pointerEvents = 'auto';
-        }
-    },
-
-    // 업로드 영역 숨기기
-    hideUploadArea() {
-        const uploadArea = document.querySelector('.modern-upload-area');
-        if (uploadArea) {
-            uploadArea.style.display = 'none';
-            uploadArea.style.pointerEvents = 'none';
-        }
-    }
 };
 
 // 전역 함수로 노출
