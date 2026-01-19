@@ -1,0 +1,10 @@
+{
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "rewrites": [
+    {
+      "source": "/sdapi/:path*",
+      "destination": "http://127.0.0.1:7860/sdapi/:path*"
+    }
+  ]
+}

@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🐻 미슬곰 이미지 자동 생성기 v2.0.1 - AI 스토리보드 생성기</title>
+    <meta name="description" content="미슬곰 이미지 자동 생성기 - AI 기반 스토리보드 자동 생성 솔루션">
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- SheetJS for Excel Export -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    
+    <!-- JSZip for ZIP Export -->
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    
+    <!-- FileSaver for Download -->
+    <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+    
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="styles/additional.css">
+</head>
+<body class="dark-mode">
+    <!-- 헤더 -->
+    <header class="header">
+        <div class="header-content">
+            <div class="header-left">
+                <h1 class="logo">🐻 미슬곰 이미지 생성기</h1>
+                <span class="version">v2.0.1</span>
+                <span class="project-name" id="current-project-name">새 프로젝트</span>
+            </div>
+            <div class="header-center">
+            </div>
+            <div class="header-right">
+                <button id="project-menu-btn" class="icon-btn" title="프로젝트 관리">
+                    📁
+                </button>
+                <button id="dark-mode-toggle" class="icon-btn" title="다크 모드 전환">
+                    🌙
+                </button>
+                <button id="help-btn" class="icon-btn" title="도움말">
+                    ❓
+                </button>
+            </div>
+        </div>
+
+        <!-- 프로젝트 드롭다운 메뉴 -->
+        <div id="project-menu" class="dropdown-menu">
+            <button class="menu-item" data-action="new">
+                <span class="icon">📄</span>
+                <span>새 프로젝트</span>
+            </button>
+            <button class="menu-item" data-action="save">
+                <span class="icon">💾</span>
+                <span>저장</span>
+            </button>
+            <button class="menu-item" data-action="load">
+                <span class="icon">📂</span>
+                <span>불러오기</span>
+            </button>
+            <div class="menu-divider"></div>
+            <button class="menu-item" data-action="export">
+                <span class="icon">📤</span>
+                <span>프로젝트 내보내기 (JSON)</span>
+            </button>
+            <button class="menu-item" data-action="import">
+                <span class="icon">📥</span>
+                <span>프로젝트 가져오기 (JSON)</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- 메인 컨테이너 -->
+    <div class="main-container">
+        <!-- 좌측 사이드바 -->
+        <aside class="sidebar">
+            <!-- 프로젝트 정보 -->
+            <div class="sidebar-section">
+                <h3 class="section-title">📁 프로젝트</h3>
+                <div class="project-info">
+                    <p class="info-label">프로젝트명</p>
+                    <input type="text" id="project-name-input" class="input-text" value="새 프로젝트" placeholder="프로젝트명을 입력하세요">
+                    <p class="info-text" style="margin-top: 8px;">
+                        <span class="auto-save-indicator">●</span> 자동 저장됨
+                    </p>
+                </div>
+            </div>
+
+            <!-- 파트 수 선택 -->
+            <div class="sidebar-section">
+                <h3 class="section-title">📝 파트 설정</h3>
+                <div class="part-count-selector">
+                    <label for="part-count">파트 수 선택</label>
+                    <select id="part-count" class="select-input">
+                        <option value="1">1개</option>
+                        <option value="2">2개</option>
+                        <option value="3">3개</option>
+                        <option value="4">4개</option>
+                        <option value="5" selected>5개</option>
+                        <option value="6">6개</option>
+                        <option value="7">7개</option>
+                        <option value="8">8개</option>
+                        <option value="9">9개</option>
+                        <option value="10">10개</option>
+                    </select>
+                    <p class="helper-text">Intro 포함 최대 10개 파트</p>
+                </div>
+            </div>
+
+            <!-- 인물 설정 -->
+            <div class="sidebar-section">
+                <h3 class="section-title">👤 인물 설정</h3>
+                <div class="ethnicity-selector">
+                    <label class="ethnicity-option">
+                        <input type="radio" name="ethnicity" value="korean" checked>
+                        <span class="ethnicity-label">
+                            <span class="ethnicity-flag">🇰🇷</span>
+                            <span class="ethnicity-name">한국인</span>
+                        </span>
+                    </label>
+                    <label class="ethnicity-option">
+                        <input type="radio" name="ethnicity" value="japanese">
+                        <span class="ethnicity-label">
+                            <span class="ethnicity-flag">🇯🇵</span>
+                            <span class="ethnicity-name">일본인</span>
+                        </span>
+                    </label>
+                    <label class="ethnicity-option">
+                        <input type="radio" name="ethnicity" value="western">
+                        <span class="ethnicity-label">
+                            <span class="ethnicity-flag">🇺🇸</span>
+                            <span class="ethnicity-name">서양인</span>
+                        </span>
+                    </label>
+                    <label class="ethnicity-option">
+                        <input type="radio" name="ethnicity" value="black">
+                        <span class="ethnicity-label">
+                            <span class="ethnicity-flag">🌍</span>
+                            <span class="ethnicity-name">흑인</span>
+                        </span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- 이미지 비율 -->
+            <div class="sidebar-section">
+                <h3 class="section-title">📐 이미지 비율</h3>
+                <div class="setting-group">
+                    <div class="setting-item">
+                        <label for="aspect-ratio">비율 선택</label>
+                        <select id="aspect-ratio" class="select-input">
+                            <option value="1:1">1:1 (정사각형) - 1024x1024</option>
+                            <option value="16:9" selected>16:9 (가로) - 1344x768</option>
+                            <option value="9:16">9:16 (세로) - 768x1344</option>
+                        </select>
+                        <small style="color: var(--text-tertiary); font-size: 11px; display: block; margin-top: 4px;">
+                            💡 고품질 이미지 생성 (--medvram 옵션 권장)
+                        </small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 이미지 스타일 -->
+            <div class="sidebar-section">
+                <h3 class="section-title">🎨 이미지 스타일</h3>
+                <div class="style-options">
+                    <label class="style-option">
+                        <input type="radio" name="style" value="korean-webtoon" checked>
+                        <span class="style-content">
+                            <img src="images/style-2d-cartoon.jpg" alt="고퀄리티 웹툰" class="style-thumbnail">
+                            <span class="style-info">
+                                <span class="style-name">한국야담: 고퀄리티 웹툰</span>
+                                <span class="style-desc">선명한 색감과 깔끔한 선, 최신 유튜브 야담 채널의 대세 스타일</span>
+                            </span>
+                        </span>
+                    </label>
+                    <label class="style-option">
+                        <input type="radio" name="style" value="folklore-illustration">
+                        <span class="style-content">
+                            <img src="images/style-illustration.jpg" alt="동화 일러스트" class="style-thumbnail">
+                            <span class="style-info">
+                                <span class="style-name">한국야담: 동화 일러스트</span>
+                                <span class="style-desc">따뜻한 파스텔톤과 둥근 그림체, 옛날 전래동화책 삽화 느낌</span>
+                            </span>
+                        </span>
+                    </label>
+                    <label class="style-option">
+                        <input type="radio" name="style" value="traditional-ink">
+                        <span class="style-content">
+                            <img src="images/style-webtoon.jpg" alt="전통 수묵화" class="style-thumbnail">
+                            <span class="style-info">
+                                <span class="style-name">한국야담: 전통 수묵화</span>
+                                <span class="style-desc">붓터치가 살아있는 수묵담채화. 가장 한국적이고 예술적인 스타일.</span>
+                            </span>
+                        </span>
+                    </label>
+                    <label class="style-option">
+                        <input type="radio" name="style" value="simple-2d-cartoon">
+                        <span class="style-content">
+                            <img src="images/style-ink.jpg" alt="심플 2D 만화" class="style-thumbnail">
+                            <span class="style-info">
+                                <span class="style-name">한국야담: 심플 2D 만화</span>
+                                <span class="style-desc">친숙하고 단순한 그림체 (학습만화 풍)</span>
+                            </span>
+                        </span>
+                    </label>
+                    <label class="style-option">
+                        <input type="radio" name="style" value="lyrical-anime">
+                        <span class="style-content">
+                            <img src="images/style-lyrical-anime.jpg" alt="감성 애니메이션" class="style-thumbnail">
+                            <span class="style-info">
+                                <span class="style-name">일본 애니: 감성 애니메이션 [서정적인 신카이 마코토 풍]</span>
+                                <span class="style-desc">아름다운 빛(조명)과 정밀한 배경</span>
+                            </span>
+                        </span>
+                    </label>
+                    <label class="style-option">
+                        <input type="radio" name="style" value="action-anime">
+                        <span class="style-content">
+                            <img src="images/style-scifi.jpg" alt="극화체 애니메이션" class="style-thumbnail">
+                            <span class="style-info">
+                                <span class="style-name">일본 애니: 극화체 애니메이션 [귀멸의 칼날 풍]</span>
+                                <span class="style-desc">굵은 선과 강렬한 대비, 역동적인 연출</span>
+                            </span>
+                        </span>
+                    </label>
+                    <label class="style-option">
+                        <input type="radio" name="style" value="documentary-photo">
+                        <span class="style-content">
+                            <img src="images/style-cinematic.jpg" alt="다큐멘터리 포토" class="style-thumbnail">
+                            <span class="style-info">
+                                <span class="style-name">일본 실사: 다큐멘터리 포토</span>
+                                <span class="style-desc">꾸밈없는 현실감, 시니어의 주름과 생활감이 묻어나는 다큐 사진</span>
+                            </span>
+                        </span>
+                    </label>
+                    <label class="style-option">
+                        <input type="radio" name="style" value="cinematic-movie">
+                        <span class="style-content">
+                            <img src="images/style-documentary.jpg" alt="영화 실사" class="style-thumbnail">
+                            <span class="style-info">
+                                <span class="style-name">시네마틱: 영화 실사</span>
+                                <span class="style-desc">영화의 한 장면 같은 웅장한 연출, 드라마틱한 조명과 실사</span>
+                            </span>
+                        </span>
+                    </label>
+                    <label class="style-option">
+                        <input type="radio" name="style" value="scifi-fantasy">
+                        <span class="style-content">
+                            <img src="images/style-action-anime.jpg" alt="판타지/SF" class="style-thumbnail">
+                            <span class="style-info">
+                                <span class="style-name">시네마틱: 판타지/SF</span>
+                                <span class="style-desc">미래 도시나 환상적인 공간, 3D 렌더링 같은 초현실적 배경</span>
+                            </span>
+                        </span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- 고급 설정 -->
+            <div class="sidebar-section">
+                <h3 class="section-title">⚙️ 고급 설정</h3>
+                <div class="setting-group">
+                    <div class="setting-item">
+                        <label for="gemini-api-key">🤖 Gemini API 키 (선택)</label>
+                        <input 
+                            type="password" 
+                            id="gemini-api-key" 
+                            class="text-input" 
+                            placeholder="AIzaSy... (입력하면 AI 대본 분석 가능)"
+                            style="font-size: 12px;"
+                        >
+                        <small style="color: var(--text-tertiary); font-size: 11px; display: block; margin-top: 4px;">
+                            💡 <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: var(--accent-primary);">무료로 발급받기</a> | 없으면 규칙 기반 분석 사용
+                        </small>
+                    </div>
+                    
+                    <!-- Stable Diffusion 연결 상태 -->
+                    <div class="setting-item" style="margin-top: 16px;">
+                        <label>🎨 Stable Diffusion 연결 상태</label>
+                        <div id="sd-connection-status" class="connection-status">
+                            <div class="status-indicator">
+                                <span class="status-dot" id="sd-status-dot"></span>
+                                <span class="status-text" id="sd-status-text">연결 확인 중...</span>
+                            </div>
+                            <button id="sd-reconnect-btn" class="reconnect-btn" style="display: none;">
+                                🔄 재연결
+                            </button>
+                        </div>
+                        <small style="color: var(--text-tertiary); font-size: 11px; display: block; margin-top: 4px;">
+                            💡 로컬에서 Stable Diffusion WebUI 실행 필요 (http://localhost:7860)
+                        </small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 진행률 -->
+            <div class="sidebar-section" id="progress-section" style="display: none;">
+                <div class="progress-container">
+                    <div class="progress-header">
+                        <span class="progress-title" id="progress-title">생성 중...</span>
+                        <span class="progress-percentage" id="progress-percentage">0%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill"></div>
+                    </div>
+                    <div class="progress-details">
+                        <span class="progress-text" id="progress-text">0 / 0</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 메인 콘텐츠 영역 -->
+        <main class="main-content">
+            <!-- 대본 입력 섹션 -->
+            <section class="script-section">
+                <div class="section-header">
+                    <h2 class="section-title">
+                        <span class="title-icon">📝</span>
+                        <span class="title-text">대본 입력</span>
+                    </h2>
+                    <div class="section-actions">
+                        <!-- 숨겨진 파일 입력 (접근성 유지) -->
+                        <input type="file" id="script-file-input" accept=".txt" style="position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0;">
+                        <button id="upload-full-script-btn" class="btn btn-secondary">
+                            <span class="btn-icon">📤</span>
+                            <span class="btn-text">전체 대본 올리기</span>
+                        </button>
+                        <button id="analyze-script-btn" class="btn btn-primary">
+                            <span class="btn-icon">🔍</span>
+                            <span class="btn-text">종합 대본 분석</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 파트 탭 -->
+                <div id="script-tabs" class="script-tabs" data-upload-enabled="true">
+                    <button class="script-tab active" data-part="intro">Intro (콜드오픈)</button>
+                    <button class="script-tab" data-part="1">Part 1</button>
+                    <button class="script-tab" data-part="2">Part 2</button>
+                    <button class="script-tab" data-part="3">Part 3</button>
+                    <button class="script-tab" data-part="4">Part 4</button>
+                    <button class="script-tab" data-part="5">Part 5</button>
+                </div>
+
+                <!-- 대본 입력 영역 (스크롤 가능) -->
+                <div id="script-content" class="script-content" data-drop-zone="true">
+                    <!-- Intro -->
+                    <div class="script-panel active" data-part="intro">
+                        <div class="script-editor">
+                            <textarea
+                                id="script-intro"
+                                class="script-textarea"
+                                placeholder="💡 Intro (콜드오픈) 대본을 입력하세요... (최대 10,000자)
+
+📁 이 영역에 파일을 드래그하면 Intro에만 입력됩니다
+📤 전체 대본을 올리려면 상단의 '전체 대본 올리기' 버튼을 사용하세요"
+                                maxlength="10000"
+                            ></textarea>
+                            <div class="script-footer">
+                                <span class="char-count">
+                                    <span id="char-count-intro">0</span> / 10,000자
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Part 1 ~ 5 (기본) -->
+                    <div class="script-panel" data-part="1">
+                        <div class="script-editor">
+                            <textarea
+                                id="script-part-1"
+                                class="script-textarea"
+                                placeholder="💡 Part 1 대본을 입력하세요... (최대 10,000자)
+
+📁 이 영역에 파일을 드래그하면 Part 1에만 입력됩니다
+📤 전체 대본을 올리려면 상단의 '전체 대본 올리기' 버튼을 사용하세요"
+                                maxlength="10000"
+                            ></textarea>
+                            <div class="script-footer">
+                                <span class="char-count">
+                                    <span id="char-count-1">0</span> / 10,000자
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="script-panel" data-part="2">
+                        <div class="script-editor">
+                            <textarea 
+                                id="script-part-2" 
+                                class="script-textarea" 
+                                placeholder="💡 Part 2 대본을 입력하세요... (최대 10,000자)
+
+📁 이 영역에 파일을 드래그하면 Part 2에만 입력됩니다
+📤 전체 대본을 올리려면 상단의 '전체 대본 올리기' 버튼을 사용하세요"
+                                maxlength="10000"
+                            ></textarea>
+                            <div class="script-footer">
+                                <span class="char-count">
+                                    <span id="char-count-2">0</span> / 10,000자
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="script-panel" data-part="3">
+                        <div class="script-editor">
+                            <textarea 
+                                id="script-part-3" 
+                                class="script-textarea" 
+                                placeholder="💡 Part 3 대본을 입력하세요... (최대 10,000자)
+
+📁 이 영역에 파일을 드래그하면 Part 3에만 입력됩니다
+📤 전체 대본을 올리려면 상단의 '전체 대본 올리기' 버튼을 사용하세요"
+                                maxlength="10000"
+                            ></textarea>
+                            <div class="script-footer">
+                                <span class="char-count">
+                                    <span id="char-count-3">0</span> / 10,000자
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="script-panel" data-part="4">
+                        <div class="script-editor">
+                            <textarea 
+                                id="script-part-4" 
+                                class="script-textarea" 
+                                placeholder="💡 Part 4 대본을 입력하세요... (최대 10,000자)
+
+📁 이 영역에 파일을 드래그하면 Part 4에만 입력됩니다
+📤 전체 대본을 올리려면 상단의 '전체 대본 올리기' 버튼을 사용하세요"
+                                maxlength="10000"
+                            ></textarea>
+                            <div class="script-footer">
+                                <span class="char-count">
+                                    <span id="char-count-4">0</span> / 10,000자
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="script-panel" data-part="5">
+                        <div class="script-editor">
+                            <textarea 
+                                id="script-part-5" 
+                                class="script-textarea" 
+                                placeholder="💡 Part 5 대본을 입력하세요... (최대 10,000자)
+
+📁 이 영역에 파일을 드래그하면 Part 5에만 입력됩니다
+📤 전체 대본을 올리려면 상단의 '전체 대본 올리기' 버튼을 사용하세요"
+                                maxlength="10000"
+                            ></textarea>
+                            <div class="script-footer">
+                                <span class="char-count">
+                                    <span id="char-count-5">0</span> / 10,000자
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 등장인물 섹션 -->
+            <section class="characters-section">
+                <div class="section-header">
+                    <h2 class="section-title">
+                        <span class="title-icon">👥</span>
+                        <span class="title-text">주요 등장인물</span>
+                    </h2>
+                    <div class="section-actions">
+                        <!-- 다운로드 버튼들 -->
+                        <button id="download-characters-images-btn" class="btn btn-secondary" disabled>
+                            <span class="btn-icon">🖼️</span>
+                            <span class="btn-text">사진 다운로드</span>
+                        </button>
+                        <button id="download-characters-excel-btn" class="btn btn-secondary" disabled>
+                            <span class="btn-icon">📊</span>
+                            <span class="btn-text">엑셀 다운로드</span>
+                        </button>
+                        <!-- 생성 버튼을 가장 오른쪽으로 -->
+                        <button id="generate-characters-btn" class="btn btn-primary" disabled>
+                            <span class="btn-icon">✨</span>
+                            <span class="btn-text">등장인물 생성</span>
+                        </button>
+                    </div>
+                </div>
+                <div id="characters-container" class="characters-grid">
+                    <div class="empty-state">
+                        <div class="empty-icon">👥</div>
+                        <p class="empty-title">등장인물이 없습니다</p>
+                        <p class="empty-desc">대본을 분석하여 등장인물을 자동으로 추출하세요</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 스토리보드 섹션 -->
+            <section class="storyboard-section">
+                <div class="section-header">
+                    <h2 class="section-title">
+                        <span class="title-icon">🎬</span>
+                        <span class="title-text">스토리보드</span>
+                    </h2>
+                    <div class="section-actions">
+                        <!-- 파트 필터 -->
+                        <div class="part-filter" id="part-filter">
+                            <button class="filter-btn active" data-part="all">전체</button>
+                        </div>
+                        <!-- 다운로드 버튼들 -->
+                        <button id="download-storyboard-images-btn" class="btn btn-secondary" disabled>
+                            <span class="btn-icon">🖼️</span>
+                            <span class="btn-text">사진 다운로드</span>
+                        </button>
+                        <button id="download-storyboard-excel-btn" class="btn btn-secondary" disabled>
+                            <span class="btn-icon">📊</span>
+                            <span class="btn-text">엑셀 다운로드</span>
+                        </button>
+                        <!-- 생성 버튼을 가장 오른쪽으로 -->
+                        <button id="generate-storyboard-btn" class="btn btn-primary" disabled>
+                            <span class="btn-icon">🎬</span>
+                            <span class="btn-text">스토리보드 생성</span>
+                        </button>
+                    </div>
+                </div>
+                <div id="storyboard-container" class="storyboard-grid">
+                    <div class="empty-state">
+                        <div class="empty-icon">🎬</div>
+                        <p class="empty-title">스토리보드가 없습니다</p>
+                        <p class="empty-desc">대본을 분석하고 스토리보드를 생성하세요</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- 이미지 수 선택 모달 -->
+    <div id="image-count-modal" class="modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content modal-medium">
+            <div class="modal-header">
+                <h3 class="modal-title">📊 AI 대본 분석 결과</h3>
+                <button class="modal-close">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="analysis-result">
+                    <p class="analysis-desc">AI가 대본을 분석하여 파트별 장면 전환을 감지했습니다.</p>
+                    <p class="analysis-desc">생성할 이미지 수를 선택하세요:</p>
+
+                    <div id="part-analysis-list" class="part-analysis-list">
+                        <!-- 파트별 분석 결과 동적 생성 -->
+                    </div>
+
+                    <div class="modal-actions">
+                        <button id="confirm-image-count-btn" class="btn btn-primary btn-full">
+                            <span class="btn-icon">✅</span>
+                            <span class="btn-text">선택 완료</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 이미지 상세 모달 -->
+    <div id="image-detail-modal" class="modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modal-title">이미지 상세</h3>
+                <button class="modal-close" id="modal-close-btn">✕</button>
+            </div>
+            <div class="modal-body modal-split">
+                <!-- 좌측: 이미지 -->
+                <div class="modal-left">
+                    <div class="image-viewer">
+                        <img id="modal-image" src="" alt="상세 이미지">
+                    </div>
+                    <div class="image-actions">
+                        <button id="modal-download-btn" class="btn btn-secondary">
+                            <span class="btn-icon">📥</span>
+                            <span class="btn-text">다운로드</span>
+                        </button>
+                        <button id="modal-regenerate-btn" class="btn btn-primary">
+                            <span class="btn-icon">🔄</span>
+                            <span class="btn-text">재생성</span>
+                        </button>
+                    </div>
+                </div>
+                <!-- 우측: 정보 -->
+                <div class="modal-right">
+                    <div class="info-section">
+                        <h4 class="info-title">📝 프롬프트</h4>
+                        <div class="prompt-tabs">
+                            <button class="prompt-tab active" data-lang="ko">한글</button>
+                            <button class="prompt-tab" data-lang="en">영문</button>
+                        </div>
+                        <div class="prompt-content">
+                            <textarea id="modal-prompt-ko" class="prompt-textarea" rows="8" placeholder="한글 프롬프트"></textarea>
+                            <textarea id="modal-prompt-en" class="prompt-textarea" rows="8" placeholder="영문 프롬프트" style="display: none;"></textarea>
+                        </div>
+                    </div>
+                    <div class="info-section">
+                        <h4 class="info-title">✏️ 수정 요청</h4>
+                        <textarea id="modal-edit-request" class="edit-textarea" rows="4" placeholder="이미지 수정 요청사항을 입력하세요..."></textarea>
+                        <button id="modal-edit-apply-btn" class="btn btn-primary btn-full">
+                            <span class="btn-icon">✨</span>
+                            <span class="btn-text">수정 적용 및 재생성</span>
+                        </button>
+                    </div>
+                    <div class="info-section">
+                        <h4 class="info-title">🕒 생성 히스토리</h4>
+                        <div id="modal-history" class="history-list">
+                            <div class="history-item">
+                                <span class="history-version">v1</span>
+                                <span class="history-date">방금 전</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="info-section" id="modal-script-section" style="display: none;">
+                        <h4 class="info-title">📄 대본 구간</h4>
+                        <div class="script-range">
+                            <p class="script-text" id="modal-script-text"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 프로젝트 목록 모달 -->
+    <div id="project-list-modal" class="modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content modal-medium">
+            <div class="modal-header">
+                <h3 class="modal-title">📋 프로젝트 목록</h3>
+                <button class="modal-close">✕</button>
+            </div>
+            <div class="modal-body">
+                <div id="project-list" class="project-list">
+                    <div class="empty-state">
+                        <p>저장된 프로젝트가 없습니다</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 도움말 모달 -->
+    <div id="help-modal" class="modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content modal-medium">
+            <div class="modal-header">
+                <h3 class="modal-title">🐻 미슬곰 이미지 생성기 v1.0 사용 가이드</h3>
+                <button class="modal-close">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="help-content">
+                    <section class="help-section">
+                        <h4>1. 파트 설정</h4>
+                        <p>• 좌측 사이드바에서 작업할 파트 수를 선택하세요 (1~10개)</p>
+                        <p>• Intro(콜드오픈) 포함 최대 10개 파트 구성 가능</p>
+                    </section>
+                    <section class="help-section">
+                        <h4>2. 대본 입력</h4>
+                        <p>• 각 파트별 탭에서 대본을 직접 입력하거나</p>
+                        <p>• TXT 파일을 업로드하여 자동으로 파트 분할</p>
+                        <p>• 파트당 최대 10,000자 입력 가능</p>
+                    </section>
+                    <section class="help-section">
+                        <h4>3. 종합 대본 분석</h4>
+                        <p>• <strong>종합 대본 분석</strong> 버튼 클릭</p>
+                        <p>• AI가 각 파트별 장면 전환을 분석합니다</p>
+                        <p>• 3가지 옵션 제시:</p>
+                        <ul>
+                            <li><strong>전체 장면</strong>: 모든 장면 전환마다 이미지 생성 (예: 50장)</li>
+                            <li><strong>중요 장면</strong>: 주요 장면만 이미지 생성 (예: 35장)</li>
+                            <li><strong>최소 장면</strong>: 필수 장면만 이미지 생성 (예: 20장)</li>
+                        </ul>
+                        <p>• 각 파트별로 이미지 수를 조정할 수 있습니다</p>
+                    </section>
+                    <section class="help-section">
+                        <h4>4. 등장인물 생성</h4>
+                        <p>• 대본 분석 후 주요 등장인물이 자동으로 추출됩니다</p>
+                        <p>• 인종, 스타일, 화질을 설정하세요</p>
+                        <p>• <strong>등장인물 생성</strong> 버튼으로 이미지 생성</p>
+                    </section>
+                    <section class="help-section">
+                        <h4>5. 스토리보드 생성</h4>
+                        <p>• 등장인물 생성 완료 후 <strong>스토리보드 생성</strong> 버튼 클릭</p>
+                        <p>• 대본 구간별로 이미지가 자동 생성됩니다</p>
+                        <p>• 파트별로 필터링하여 확인 가능</p>
+                    </section>
+                    <section class="help-section">
+                        <h4>6. 다운로드</h4>
+                        <p>• <strong>전체 다운로드</strong>: 엑셀 파일(이미지 포함) + 원본 이미지 ZIP</p>
+                        <p>• 엑셀에는 이미지, 프롬프트, 대본 정보가 포함됩니다</p>
+                    </section>
+                    <section class="help-section">
+                        <h4>7. 키보드 단축키</h4>
+                        <p>• <kbd>Ctrl</kbd> + <kbd>S</kbd>: 프로젝트 저장</p>
+                        <p>• <kbd>ESC</kbd>: 모달 닫기</p>
+                    </section>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast 알림 -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- 🆕 이미지 라이트박스 배너 (호버 모드) -->
+    <div id="image-lightbox" class="image-lightbox">
+        <img id="lightbox-image" class="lightbox-image" src="" alt="">
+    </div>
+
+    <!-- JavaScript 모듈 -->
+    <script>
+        // JavaScript 오류를 캡처하여 콘솔에 상세히 출력
+        window.addEventListener('error', function(e) {
+            console.error('🚨 JavaScript Error:', {
+                message: e.message,
+                filename: e.filename,
+                lineno: e.lineno,
+                colno: e.colno,
+                error: e.error
+            });
+        });
+    </script>
+    <script src="scripts/api.js"></script>
+    <script src="scripts/ui.js"></script>
+    <script src="scripts/projectManager.js"></script>
+    <script src="scripts/scriptManager.js"></script>
+    <script src="scripts/characterManager.js"></script>
+    <script src="scripts/storyboardManager.js"></script>
+    <script src="scripts/excelExport.js"></script>
+    <script src="scripts/imageLightbox.js"></script>
+    <script src="scripts/app.js"></script>
+</body>
+</html>

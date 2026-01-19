@@ -1,0 +1,2153 @@
+# 야담 이미지 생성기 v5.0 - 개발 사양서
+
+## 📋 프로젝트 개요
+
+### 프로젝트명
+야담 이미지 생성기 v5.0 (Yaddam Storyboard Generator)
+
+### 목적
+YouTube 시니어 채널용 한국 시대극 스토리보드 이미지를 AI로 자동 생성하는 웹 애플리케이션
+
+### 핵심 요구사항
+- 도메인 없이 웹사이트 이용 가능 (정적 웹사이트 + API 서버)
+- AI API 연동을 통한 이미지 생성
+- 대본 기반 자동 장면 분석 및 캐릭터 추출
+- 프롬프트 수정 및 이미지 재생성 기능
+- 캐릭터 일관성 유지
+
+### 기술 스택
+**Frontend:**
+- HTML5, CSS3, Vanilla JavaScript
+- 정적 호스팅: Vercel
+- 프레임워크 불필요 (순수 JS)
+
+**Backend:**
+- Python 3.8+ / FastAPI
+- AI 이미지 생성: GenSpark API (또는 Stable Diffusion, DALL-E 등)
+- LLM: OpenAI GPT-4 / Anthropic Claude (대본 분석, 프롬프트 생성)
+- 호스팅: Railway / AWS / Google Cloud
+
+**데이터 저장:**
+- SQLite (개발) / PostgreSQL (프로덕션)
+- 파일 저장: AWS S3 / Cloudinary
+- 세션 관리: Redis (선택사항)
+
+---
+
+## 🎨 UI/UX 디자인 사양
+
+### 전체 레이아웃
+
+┌─────────────────────────────────────────────────────────────┐ │ 🎬 야담 이미지 생성기 v5.0 [단축키] [☾ 다크모드] [? 도움말] │ ├──────────────┬──────────────────────────────────────────────┤ │ │ │ │ 왼쪽 사이드바 │ 메인 작업 영역 │ │ (320px) │ (가변 폭) │ │ │ │ │ 📁 파트 설정 │ ┌─────────────────────────────────────┐ │ │ Part 수: [5] │ │ 📝 대본 입력 탭 │ │ │ │ │ [Intro] [Part1] [Part2] ... [Part5]│ │ │ 🎨 스타일 │ └─────────────────────────────────────┘ │ │ [드롭다운] │ │ │ [텍스트입력] │ ┌─────────────────────────────────────┐ │ │ │ │ 👥 주요 등장인물 (5명) │ │ │ ⚙️ 이미지 설정│ │ [아바타] [아바타] [아바타] ... │ │ │ 화질: [2K▼] │ └─────────────────────────────────────┘ │ │ 비율: [16:9] │ │ │ │ ┌─────────────────────────────────────┐ │ │ 📊 장면 설정 │ │ 🖼️ 스토리보드 이미지 │ │ │ ○ 전체(50장) │ │ [Part 1▼] [Part 2] [Part 3] ... │ │ │ ○ 필수(35장) │ │ │ │ │ ○ 축소(20장) │ │ [이미지] [이미지] [이미지] │ │ │ │ │ [이미지] [이미지] [이미지] │ │ │ 🎬 액션 │ │ (가로 3열 그리드) │ │ │ [대본 분석] │ └─────────────────────────────────────┘ │ │ [등장인물생성]│ │ │ [이미지 생성] │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │ │ │ 📈 진행률: [████████░░] 45% (34/76) │ │ 📈 진행률 │ ┣━ 등장인물: 완료 (5/5) │ │ 전체: 45% │ ┣━ Part 1: 완료 (12/12) │ │ 등장인물: ✓ │ ┗━ Part 2: 진행 중 (8/15) │ │ Part 1: ✓ │ │ │ Part 2: 50% │ │ └──────────────┴──────────────────────────────────────────────┘
+
+
+### 색상 스킴
+
+**다크 모드 (기본):**
+```css
+--bg-primary: #0F172A;       /* 메인 배경 */
+--bg-secondary: #1E293B;     /* 사이드바/카드 */
+--bg-tertiary: #334155;      /* 호버/액티브 */
+--accent-primary: #6366F1;   /* 보라색 (버튼, 강조) */
+--accent-secondary: #06B6D4; /* 청록색 (링크) */
+--text-primary: #F8FAFC;     /* 밝은 텍스트 */
+--text-secondary: #CBD5E1;   /* 보조 텍스트 */
+--border-color: #475569;     /* 테두리 */
+--success: #10B981;          /* 성공 */
+--warning: #F59E0B;          /* 경고 */
+--error: #EF4444;            /* 에러 */
+라이트 모드:
+
+Copy--bg-primary: #FFFFFF;
+--bg-secondary: #F8FAFC;
+--bg-tertiary: #E2E8F0;
+--text-primary: #0F172A;
+--text-secondary: #475569;
+--border-color: #CBD5E1;
+타이포그래피
+Font Family: Inter, -apple-system, sans-serif
+제목 (H1): 24px, Bold (700)
+제목 (H2): 20px, SemiBold (600)
+제목 (H3): 18px, SemiBold (600)
+본문: 15px, Regular (400)
+캡션: 13px, Regular (400)
+📐 상세 컴포넌트 사양
+1. 왼쪽 사이드바 (320px 고정)
+1.1 파트 설정 섹션
+Copy<section class="sidebar-section">
+  <h2>📁 파트 설정</h2>
+  
+  <!-- 파트 수 조정 -->
+  <div class="part-count-control">
+    <label>파트 수</label>
+    <div class="number-input">
+      <button class="btn-decrease">-</button>
+      <input type="number" min="1" max="10" value="5">
+      <button class="btn-increase">+</button>
+    </div>
+    <span class="helper-text">1~10개 선택 가능</span>
+  </div>
+  
+  <!-- 파트 목록 표시 -->
+  <div class="part-list">
+    <div class="part-item" data-part="intro">
+      <span class="part-label">Intro (콜드오픈)</span>
+      <span class="part-status">⬜</span>
+    </div>
+    <div class="part-item" data-part="1">
+      <span class="part-label">Part 1</span>
+      <span class="part-status">✓</span>
+    </div>
+    <!-- Part 2~10 동적 생성 -->
+  </div>
+</section>
+기능:
+
+파트 수 증가/감소 버튼
+1~10개 범위 제한
+파트 수 변경 시 대본 입력 탭 자동 생성/제거
+각 파트 업로드 상태 표시: ⬜(대기) ⏳(업로드중) ✓(완료)
+1.2 스타일 선택 섹션
+Copy<section class="sidebar-section">
+  <h2>🎨 이미지 스타일</h2>
+  
+  <!-- 프리셋 스타일 -->
+  <div class="style-presets">
+    <select id="style-preset" class="custom-select">
+      <option value="">-- 스타일 선택 --</option>
+      <optgroup label="수채화">
+        <option value="dreamlike">Dreamlike Watercolor</option>
+        <option value="traditional">Traditional Watercolor</option>
+      </optgroup>
+      <optgroup label="사실적">
+        <option value="realistic">Realistic Photo</option>
+        <option value="cinematic">Cinematic</option>
+      </optgroup>
+      <optgroup label="일러스트">
+        <option value="anime">Anime Style</option>
+        <option value="manhwa">Manhwa Style</option>
+        <option value="studio-ghibli">Studio Ghibli</option>
+      </optgroup>
+      <optgroup label="한국 전통">
+        <option value="korean-painting">한국화</option>
+        <option value="minhwa">민화</option>
+      </optgroup>
+    </select>
+  </div>
+  
+  <!-- 커스텀 스타일 입력 -->
+  <div class="custom-style-input">
+    <label>커스텀 스타일</label>
+    <input 
+      type="text" 
+      placeholder="예: 움직이는 하울의 성 그림체"
+      maxlength="100"
+    >
+    <span class="helper-text">
+      원하는 스타일을 직접 입력하세요
+    </span>
+  </div>
+  
+  <!-- 스타일 미리보기 (선택사항) -->
+  <div class="style-preview">
+    <img src="preview.jpg" alt="스타일 예시">
+  </div>
+</section>
+기능:
+
+드롭다운: 미리 정의된 스타일 선택
+텍스트 입력: 자유 형식 스타일 (예: "움직이는 하울의 성")
+AI가 입력된 스타일을 분석하여 프롬프트에 반영
+프리셋 + 커스텀 동시 사용 가능
+1.3 이미지 설정 섹션
+Copy<section class="sidebar-section">
+  <h2>⚙️ 이미지 설정</h2>
+  
+  <!-- 화질 선택 -->
+  <div class="setting-item">
+    <label>화질</label>
+    <select id="quality-select">
+      <option value="1k">1K (1024x1024)</option>
+      <option value="2k" selected>2K (2048x2048) 권장</option>
+      <option value="4k">4K (4096x4096)</option>
+    </select>
+    <span class="badge-recommended">권장</span>
+  </div>
+  
+  <!-- 화면 비율 -->
+  <div class="setting-item">
+    <label>화면 비율</label>
+    <select id="ratio-select">
+      <option value="1:1">1:1 (정사각형)</option>
+      <option value="16:9" selected>16:9 (와이드)</option>
+      <option value="4:3">4:3 (표준)</option>
+      <option value="9:16">9:16 (세로)</option>
+    </select>
+  </div>
+</section>
+기능:
+
+화질: AI API가 지원하는 최대값을 "권장" 표시
+사용자가 수동 선택 가능
+선택 시 예상 생성 시간 업데이트
+1.4 장면 설정 섹션
+Copy<section class="sidebar-section">
+  <h2>📊 장면 설정</h2>
+  
+  <div class="scene-options">
+    <!-- 대본 분석 후 표시 -->
+    <p class="info-text">
+      대본에서 <strong>12개 장면 전환</strong>을 감지했습니다.
+    </p>
+    
+    <label class="radio-option">
+      <input type="radio" name="scene-mode" value="all">
+      <div class="option-content">
+        <span class="option-title">전체 전환별 이미지</span>
+        <span class="option-count">50장</span>
+      </div>
+      <p class="option-desc">모든 장면 전환마다 이미지 생성</p>
+    </label>
+    
+    <label class="radio-option">
+      <input type="radio" name="scene-mode" value="essential" checked>
+      <div class="option-content">
+        <span class="option-title">꼭 필요한 곳만</span>
+        <span class="option-count">35장</span>
+      </div>
+      <p class="option-desc">중요 장면만 선별하여 생성</p>
+    </label>
+    
+    <label class="radio-option">
+      <input type="radio" name="scene-mode" value="minimal">
+      <div class="option-content">
+        <span class="option-title">축소형</span>
+        <span class="option-count">20장</span>
+      </div>
+      <p class="option-desc">핵심 장면만 최소한으로 생성</p>
+    </label>
+  </div>
+</section>
+기능:
+
+대본 분석 후 AI가 자동으로 장면 개수 계산
+3가지 옵션 제공 (라디오 버튼)
+선택에 따라 총 이미지 개수 및 예상 시간 변경
+1.5 액션 버튼 섹션
+Copy<section class="sidebar-section actions">
+  <button 
+    id="btn-analyze" 
+    class="primary-btn" 
+    disabled
+  >
+    <span class="icon">📊</span>
+    <span>대본 분석하기</span>
+  </button>
+  
+  <button 
+    id="btn-generate-characters" 
+    class="primary-btn" 
+    disabled
+  >
+    <span class="icon">👥</span>
+    <span>등장인물 생성</span>
+  </button>
+  
+  <button 
+    id="btn-generate-storyboard" 
+    class="primary-btn" 
+    disabled
+  >
+    <span class="icon">🎬</span>
+    <span>스토리보드 생성</span>
+  </button>
+</section>
+버튼 활성화 조건:
+
+대본 분석: 최소 1개 파트 입력 완료
+등장인물 생성: 대본 분석 완료
+스토리보드 생성: 등장인물 생성 및 사용자 확정 완료
+1.6 진행률 섹션
+Copy<section class="sidebar-section progress-summary">
+  <h2>📈 진행률</h2>
+  
+  <div class="progress-item">
+    <span class="progress-label">전체 진행률</span>
+    <div class="progress-bar-mini">
+      <div class="progress-fill" style="width: 45%"></div>
+    </div>
+    <span class="progress-percent">45%</span>
+  </div>
+  
+  <div class="progress-details">
+    <div class="detail-item completed">
+      <span class="icon">✓</span>
+      <span>등장인물: 완료 (5/5)</span>
+    </div>
+    <div class="detail-item completed">
+      <span class="icon">✓</span>
+      <span>Part 1: 완료 (12/12)</span>
+    </div>
+    <div class="detail-item in-progress">
+      <span class="icon">⏳</span>
+      <span>Part 2: 진행 중 (8/15)</span>
+    </div>
+    <div class="detail-item pending">
+      <span class="icon">⬜</span>
+      <span>Part 3~5: 대기 중</span>
+    </div>
+  </div>
+</section>
+기능:
+
+실시간 진행률 업데이트 (1초마다 폴링)
+파트별 상태 표시
+완료/진행중/대기 색상 구분
+2. 메인 작업 영역
+2.1 상단 단축키 표시
+Copy<div class="keyboard-shortcuts">
+  <span class="shortcut-item">
+    <kbd>Ctrl</kbd> + <kbd>S</kbd> 대본 저장
+  </span>
+  <span class="separator">|</span>
+  <span class="shortcut-item">
+    <kbd>R</kbd> 재생성
+  </span>
+  <span class="separator">|</span>
+  <span class="shortcut-item">
+    <kbd>←</kbd> <kbd>→</kbd> 이미지 이동
+  </span>
+</div>
+스타일:
+
+상단 고정 (position: sticky)
+반투명 배경
+작은 크기 (방해되지 않게)
+2.2 대본 입력 탭
+Copy<div class="script-tabs-container">
+  <div class="tabs-header">
+    <button class="tab-btn active" data-tab="intro">
+      Intro (콜드오픈)
+    </button>
+    <button class="tab-btn" data-tab="part1">
+      Part 1
+    </button>
+    <!-- Part 2~10 동적 생성 -->
+  </div>
+  
+  <div class="tabs-content">
+    <div class="tab-panel active" id="tab-intro">
+      <textarea 
+        placeholder="콜드오픈 대본을 입력하세요... (최대 10,000자)"
+        maxlength="10000"
+        rows="15"
+      ></textarea>
+      <div class="char-counter">
+        <span class="current">0</span> / 10,000자
+      </div>
+    </div>
+    
+    <div class="tab-panel" id="tab-part1">
+      <textarea 
+        placeholder="Part 1 대본을 입력하세요... (최대 10,000자)"
+        maxlength="6000"
+        rows="15"
+      ></textarea>
+      <div class="char-counter">
+        <span class="current">0</span> / 10,000자
+      </div>
+    </div>
+  </div>
+</div>
+기능:
+
+탭 클릭으로 파트 전환
+실시간 글자 수 카운터
+10,000자 제한
+입력 완료 시 사이드바 파트 상태 업데이트 (✓)
+Ctrl+S로 저장 (LocalStorage 또는 서버)
+2.3 주요 등장인물 섹션
+Copy<div class="characters-section">
+  <div class="section-header">
+    <h2>👥 주요 등장인물 (5명)</h2>
+    <button class="btn-secondary" id="btn-regenerate-characters">
+      🔄 다시 추출
+    </button>
+  </div>
+  
+  <div class="characters-grid">
+    <!-- 등장인물 카드 (최대 5명) -->
+    <div class="character-card" data-character-id="1">
+      <div class="character-avatar">
+        <img src="character1.png" alt="윤해린">
+        <button class="btn-edit-character">✏️</button>
+      </div>
+      <div class="character-info">
+        <h3 class="character-name">윤해린 (Yoon Haerin)</h3>
+        <p class="character-meta">27회 등장 • 주인공</p>
+        <p class="character-desc">
+          20대 여성, 한복 차림, 평온한 표정...
+        </p>
+      </div>
+      <button class="btn-view-character">이미지 보기</button>
+    </div>
+    
+    <!-- 캐릭터 2~5 -->
+  </div>
+</div>
+기능:
+
+대본 분석 후 대사가 있는 캐릭터 자동 추출
+최대 5명까지 표시
+각 캐릭터 클릭 → 캐릭터 상세 모달 열기
+"다시 추출" 버튼으로 재분석
+2.4 스토리보드 이미지 섹션
+Copy<div class="storyboard-section">
+  <div class="section-header">
+    <h2>🖼️ 스토리보드 이미지</h2>
+    
+    <!-- 파트 필터 버튼 -->
+    <div class="part-filter-buttons">
+      <button class="filter-btn active" data-filter="all">
+        전체
+      </button>
+      <button class="filter-btn" data-filter="part1">
+        Part 1
+      </button>
+      <button class="filter-btn" data-filter="part2">
+        Part 2
+      </button>
+      <!-- Part 3~10 동적 생성 -->
+    </div>
+    
+    <!-- 다운로드 버튼 -->
+    <div class="download-buttons">
+      <button class="btn-secondary" id="btn-download-selected">
+        ⬇️ 선택 다운로드 (<span id="selected-count">0</span>)
+      </button>
+      <button class="btn-secondary" id="btn-download-part">
+        📦 현재 파트 ZIP
+      </button>
+    </div>
+  </div>
+  
+  <!-- 이미지 그리드 (가로 3열) -->
+  <div class="image-grid">
+    <!-- 이미지 카드 -->
+    <div class="image-card" data-image-id="1" data-part="part1">
+      <div class="image-checkbox">
+        <input type="checkbox" class="img-select">
+      </div>
+      
+      <img 
+        src="storyboard1.png" 
+        alt="씬 1" 
+        class="image-thumbnail"
+        loading="lazy"
+      >
+      
+      <div class="image-overlay">
+        <button class="btn-icon btn-view">🔍 크게 보기</button>
+        <button class="btn-icon btn-download">⬇️ 다운로드</button>
+      </div>
+      
+      <div class="image-info">
+        <span class="image-number">#1</span>
+        <span class="image-scene">씬 1</span>
+      </div>
+      
+      <div class="image-meta">
+        <span class="part-badge">Part 1</span>
+        <span class="script-range">앞문단 ~ 뒷문단</span>
+      </div>
+      
+      <button class="btn-regenerate-quick">
+        🔄 다시 그리기
+      </button>
+    </div>
+    
+    <!-- 이미지 2~76 -->
+  </div>
+  
+  <!-- 스크롤 가능 -->
+</div>
+기능:
+
+가로 3열 그리드 레이아웃
+파트 필터 버튼으로 특정 파트만 표시
+체크박스로 다중 선택 → 선택 다운로드
+"다시 그리기" 버튼 → 기존 프롬프트로 즉시 재생성 (모달 없음)
+이미지 클릭 → 이미지 상세 모달 열기
+대본 위치 표시: "앞문단 ~ 뒷문단"
+무한 스크롤 또는 페이지네이션
+🔧 기능 상세 사양
+기능 1: 대본 파트 관리
+1.1 파트 수 조정
+입력:
+
+사용자가 숫자 입력 또는 +/- 버튼 클릭
+범위: 1~10
+처리:
+
+Copyfunction updatePartCount(newCount) {
+  // 1. 유효성 검증
+  if (newCount < 1 || newCount > 10) return;
+  
+  // 2. 탭 생성/제거
+  const currentCount = getTabs().length - 1; // Intro 제외
+  
+  if (newCount > currentCount) {
+    // 탭 추가
+    for (let i = currentCount + 1; i <= newCount; i++) {
+      createTab(`Part ${i}`);
+    }
+  } else {
+    // 탭 제거 (확인 대화상자)
+    if (confirm('입력한 대본이 삭제됩니다. 계속하시겠습니까?')) {
+      for (let i = newCount + 1; i <= currentCount; i++) {
+        removeTab(`Part ${i}`);
+      }
+    }
+  }
+  
+  // 3. 사이드바 파트 목록 업데이트
+  updateSidebarPartList(newCount);
+}
+1.2 대본 입력
+입력:
+
+사용자가 textarea에 대본 입력
+최대 10,000자
+처리:
+
+Copyfunction handleScriptInput(partNumber, content) {
+  // 1. 글자 수 카운터 업데이트
+  updateCharCounter(partNumber, content.length);
+  
+  // 2. 10,000자 초과 시 경고
+  if (content.length > 10,000) {
+    showToast('10,000자를 초과할 수 없습니다.', 'warning');
+    return false;
+  }
+  
+  // 3. 자동 저장 (LocalStorage)
+  saveScriptToLocal(partNumber, content);
+  
+  // 4. 사이드바 상태 업데이트
+  if (content.trim().length > 0) {
+    updatePartStatus(partNumber, 'completed'); // ✓
+  } else {
+    updatePartStatus(partNumber, 'empty'); // ⬜
+  }
+  
+  // 5. 대본 분석 버튼 활성화 확인
+  checkAnalyzeButtonState();
+}
+1.3 대본 저장 (Ctrl+S)
+처리:
+
+Copydocument.addEventListener('keydown', (e) => {
+  if (e.ctrlKey && e.key === 's') {
+    e.preventDefault();
+    saveAllScripts();
+    showToast('대본이 저장되었습니다.', 'success');
+  }
+});
+
+function saveAllScripts() {
+  const scripts = {};
+  
+  // Intro
+  scripts.intro = getScriptContent('intro');
+  
+  // Part 1~N
+  const partCount = getPartCount();
+  for (let i = 1; i <= partCount; i++) {
+    scripts[`part${i}`] = getScriptContent(`part${i}`);
+  }
+  
+  // LocalStorage 저장
+  localStorage.setItem('yaddam_scripts', JSON.stringify(scripts));
+  
+  // 서버 저장 (선택사항)
+  // await saveScriptsToServer(scripts);
+}
+기능 2: 대본 분석
+2.1 대본 분석 API 호출
+트리거:
+
+"대본 분석하기" 버튼 클릭
+API 요청:
+
+CopyPOST /api/scripts/analyze
+Content-Type: application/json
+
+{
+  "project_id": "uuid-1234",
+  "scripts": {
+    "intro": "바로 그 순간, 윤해린의 얼굴이...",
+    "part1": "씬 1: 궁궐 안뜰\n\n(윤해린이 조용히...)",
+    "part2": "..."
+  },
+  "style": "dreamlike",
+  "custom_style": "움직이는 하울의 성 그림체"
+}
+API 응답:
+
+Copy{
+  "success": true,
+  "data": {
+    "total_scenes": 12,
+    "scene_transitions": [
+      {
+        "scene_number": 1,
+        "scene_name": "궁궐 안뜰 - 아침",
+        "part": "part1",
+        "script_range": {
+          "start": "씬 1: 궁궐 안뜰",
+          "end": "윤해린: \"오늘도 평화로운...\""
+        },
+        "characters": ["윤해린"],
+        "location": "궁궐 안뜰",
+        "time": "아침",
+        "mood": "평온"
+      },
+      // 씬 2~12
+    ],
+    "image_count_options": {
+      "all": 50,
+      "essential": 35,
+      "minimal": 20
+    },
+    "characters": [
+      {
+        "id": "char1",
+        "name": "윤해린",
+        "name_en": "Yoon Haerin",
+        "mentions": 27,
+        "role": "주인공",
+        "description": "20대 여성, 한복 차림 (분홍색 저고리, 파란색 치마), 평온한 표정, 긴 검은 머리"
+      },
+      {
+        "id": "char2",
+        "name": "백도식",
+        "name_en": "Baek Dosik",
+        "mentions": 18,
+        "role": "조력자",
+        "description": "30대 남성, 관복 차림, 근엄한 표정"
+      }
+      // 캐릭터 3~5
+    ]
+  }
+}
+2.2 분석 결과 UI 업데이트
+Copyasync function handleAnalyzeScript() {
+  // 1. 로딩 표시
+  showLoading('대본을 분석하고 있습니다...');
+  disableButton('btn-analyze');
+  
+  try {
+    // 2. API 호출
+    const scripts = getAllScripts();
+    const style = getSelectedStyle();
+    const customStyle = getCustomStyle();
+    
+    const response = await fetch('/api/scripts/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        project_id: getCurrentProjectId(),
+        scripts,
+        style,
+        custom_style: customStyle
+      })
+    });
+    
+    const result = await response.json();
+    
+    if (!result.success) {
+      throw new Error(result.error);
+    }
+    
+    // 3. 장면 설정 섹션 업데이트
+    updateSceneOptions(result.data.image_count_options);
+    
+    // 4. 캐릭터 섹션 표시
+    displayCharacters(result.data.characters);
+    
+    // 5. 분석 결과 저장
+    saveAnalysisResult(result.data);
+    
+    // 6. 다음 버튼 활성화
+    enableButton('btn-generate-characters');
+    
+    showToast('대본 분석 완료!', 'success');
+    
+  } catch (error) {
+    showToast('대본 분석 실패: ' + error.message, 'error');
+  } finally {
+    hideLoading();
+    enableButton('btn-analyze');
+  }
+}
+기능 3: 주요 등장인물 생성
+3.1 등장인물 이미지 생성 API
+트리거:
+
+"등장인물 생성" 버튼 클릭
+API 요청:
+
+CopyPOST /api/characters/generate
+Content-Type: application/json
+
+{
+  "project_id": "uuid-1234",
+  "characters": [
+    {
+      "id": "char1",
+      "name": "윤해린",
+      "description": "20대 여성, 한복 차림...",
+      "style": "dreamlike",
+      "custom_style": "움직이는 하울의 성 그림체"
+    }
+    // 캐릭터 2~5
+  ],
+  "quality": "2k",
+  "aspect_ratio": "1:1"
+}
+API 응답:
+
+Copy{
+  "success": true,
+  "data": {
+    "characters": [
+      {
+        "id": "char1",
+        "name": "윤해린",
+        "image_url": "https://cdn.example.com/char1_v1.png",
+        "prompt_kr": "20대 한국 여성, 전통 한복 차림 (분홍색 저고리...",
+        "prompt_en": "20s Korean woman, traditional hanbok...",
+        "version": 1
+      }
+      // 캐릭터 2~5
+    ]
+  }
+}
+3.2 등장인물 카드 표시
+Copyfunction displayCharacters(characters) {
+  const container = document.querySelector('.characters-grid');
+  container.innerHTML = '';
+  
+  characters.forEach(char => {
+    const card = createCharacterCard(char);
+    container.appendChild(card);
+  });
+}
+
+function createCharacterCard(char) {
+  const card = document.createElement('div');
+  card.className = 'character-card';
+  card.dataset.characterId = char.id;
+  
+  card.innerHTML = `
+    <div class="character-avatar">
+      <img src="${char.image_url}" alt="${char.name}">
+      <button class="btn-edit-character">✏️</button>
+    </div>
+    <div class="character-info">
+      <h3>${char.name} (${char.name_en})</h3>
+      <p class="character-meta">${char.mentions}회 등장 • ${char.role}</p>
+      <p class="character-desc">${char.description}</p>
+    </div>
+    <button class="btn-view-character">이미지 보기</button>
+  `;
+  
+  // 이벤트 리스너
+  card.querySelector('.btn-view-character').addEventListener('click', () => {
+    openCharacterModal(char);
+  });
+  
+  return card;
+}
+모달 창 사양
+모달 1: 캐릭터 상세 모달
+레이아웃
+┌─────────────────────────────────────────────────────────┐
+│ 윤해린 (Yoon Haerin) - 주인공                      [✕]  │
+├──────────────────┬──────────────────────────────────────┤
+│                  │                                      │
+│   [큰 이미지]     │  📍 캐릭터 정보                       │
+│   (500x500px)    │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━      │
+│                  │  이름: 윤해린 (Yoon Haerin)          │
+│                  │  등장: 27회                           │
+│  [⬇️ 다운로드]    │  역할: 주인공                         │
+│                  │                                      │
+│                  │  📝 자동 생성 설명                    │
+│                  │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━      │
+│                  │  [textarea - 읽기 전용]              │
+│                  │  20대 여성, 한복 차림...             │
+│                  │                                      │
+│                  │  🇰🇷 한글 프롬프트                    │
+│                  │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━      │
+│                  │  [textarea - 수정 가능]              │
+│                  │  20대 한국 여성, 전통 한복...         │
+│                  │                                      │
+│                  │  🇺🇸 영문 프롬프트                    │
+│                  │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━      │
+│                  │  [textarea - 수정 가능]              │
+│                  │  20s Korean woman, traditional...    │
+│                  │                                      │
+│                  │  💬 수정 요청 사항                    │
+│                  │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━      │
+│                  │  [textarea]                          │
+│                  │  예: 눈동자 색을 파란색으로 변경       │
+│                  │                                      │
+│                  │  [🔄 현재 프롬프트로 재생성]          │
+│                  │  [✨ 수정 요청 반영하여 재생성]        │
+│                  │                                      │
+│                  │  📜 생성 히스토리 (3개)               │
+│                  │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━      │
+│                  │  [v1] [v2] [v3] ...                  │
+│                  │  ↓ 스크롤 가능                        │
+│                  │                                      │
+└──────────────────┴──────────────────────────────────────┘
+HTML 구조
+Copy<div id="character-modal" class="modal" style="display: none;">
+  <div class="modal-overlay"></div>
+  <div class="modal-content character-modal-content">
+    <div class="modal-header">
+      <h2>
+        <span class="char-name">윤해린 (Yoon Haerin)</span>
+        <span class="char-role">주인공</span>
+      </h2>
+      <button class="modal-close">✕</button>
+    </div>
+    
+    <div class="modal-body">
+      <!-- 좌측: 이미지 -->
+      <div class="modal-left">
+        <div class="char-image-container">
+          <img 
+            id="char-current-image" 
+            src="character1.png" 
+            alt="윤해린"
+          >
+        </div>
+        <button class="btn-download-char">
+          ⬇️ 이미지 다운로드
+        </button>
+      </div>
+      
+      <!-- 우측: 정보 및 편집 -->
+      <div class="modal-right">
+        <!-- 캐릭터 정보 -->
+        <section class="char-info-section">
+          <h3>📍 캐릭터 정보</h3>
+          <div class="info-grid">
+            <div class="info-item">
+              <span class="label">이름:</span>
+              <span class="value">윤해린 (Yoon Haerin)</span>
+            </div>
+            <div class="info-item">
+              <span class="label">등장:</span>
+              <span class="value">27회</span>
+            </div>
+            <div class="info-item">
+              <span class="label">역할:</span>
+              <span class="value">주인공</span>
+            </div>
+          </div>
+        </section>
+        
+        <!-- 자동 생성 설명 -->
+        <section class="char-desc-section">
+          <h3>📝 자동 생성 설명</h3>
+          <textarea 
+            id="char-description" 
+            readonly
+            rows="3"
+          >20대 여성, 한복 차림 (분홍색 저고리, 파란색 치마), 평온한 표정, 긴 검은 머리</textarea>
+        </section>
+        
+        <!-- 한글 프롬프트 -->
+        <section class="prompt-section">
+          <h3>🇰🇷 한글 프롬프트</h3>
+          <textarea 
+            id="char-prompt-kr" 
+            rows="4"
+          >20대 한국 여성, 전통 한복 차림 (분홍색 저고리, 파란색 치마), 평온한 표정, 긴 검은 머리, 궁궐 배경, 아침 햇살, 부드러운 조명, 드림라이크 수채화 스타일</textarea>
+        </section>
+        
+        <!-- 영문 프롬프트 -->
+        <section class="prompt-section">
+          <h3>🇺🇸 영문 프롬프트</h3>
+          <textarea 
+            id="char-prompt-en" 
+            rows="4"
+          >20s Korean woman, traditional hanbok dress (pink jeogori, blue chima), serene expression, long black hair, palace courtyard background, morning sunlight, soft lighting, dreamlike watercolor style, high quality, detailed</textarea>
+        </section>
+        
+        <!-- 수정 요청 -->
+        <section class="request-section">
+          <h3>💬 수정 요청 사항</h3>
+          <textarea 
+            id="char-request" 
+            placeholder="예: 눈동자 색을 파란색으로 변경, 미소 짓는 표정으로..."
+            rows="3"
+          ></textarea>
+        </section>
+        
+        <!-- 생성 버튼 -->
+        <div class="generation-buttons">
+          <button 
+            class="btn-secondary" 
+            id="btn-regenerate-current"
+          >
+            🔄 현재 프롬프트로 재생성
+          </button>
+          <button 
+            class="btn-primary" 
+            id="btn-regenerate-with-request"
+          >
+            ✨ 수정 요청 반영하여 재생성
+          </button>
+        </div>
+        
+        <!-- 생성 히스토리 -->
+        <section class="history-section">
+          <h3>📜 생성 히스토리 (<span id="history-count">3</span>개)</h3>
+          <div class="history-grid">
+            <div class="history-item selected" data-version="1">
+              <img src="char1_v1.png" alt="버전 1">
+              <span class="version-badge">v1</span>
+            </div>
+            <div class="history-item" data-version="2">
+              <img src="char1_v2.png" alt="버전 2">
+              <span class="version-badge">v2</span>
+            </div>
+            <div class="history-item" data-version="3">
+              <img src="char1_v3.png" alt="버전 3">
+              <span class="version-badge">v3</span>
+            </div>
+            <!-- 더 많은 버전들... 스크롤 가능 -->
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+기능 동작
+3.3.1 히스토리 이미지 클릭
+
+Copydocument.querySelectorAll('.history-item').forEach(item => {
+  item.addEventListener('click', function() {
+    const version = this.dataset.version;
+    
+    // 1. 좌측 이미지 업데이트
+    const imageUrl = this.querySelector('img').src;
+    document.getElementById('char-current-image').src = imageUrl;
+    
+    // 2. 선택 상태 표시
+    document.querySelectorAll('.history-item').forEach(i => {
+      i.classList.remove('selected');
+    });
+    this.classList.add('selected');
+    
+    // 3. 프롬프트 로드
+    loadPromptForVersion(version);
+    
+    // 4. 이 버전을 스토리보드 생성 시 사용할 캐릭터로 설정
+    setCharacterVersionForStoryboard(characterId, version);
+  });
+});
+3.3.2 현재 프롬프트로 재생성
+
+Copydocument.getElementById('btn-regenerate-current').addEventListener('click', async () => {
+  const promptKr = document.getElementById('char-prompt-kr').value;
+  const promptEn = document.getElementById('char-prompt-en').value;
+  
+  showLoading('이미지를 생성하고 있습니다...');
+  
+  try {
+    const response = await fetch('/api/characters/regenerate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        character_id: currentCharacterId,
+        prompt_kr: promptKr,
+        prompt_en: promptEn,
+        quality: getQuality(),
+        aspect_ratio: '1:1'
+      })
+    });
+    
+    const result = await response.json();
+    
+    if (result.success) {
+      // 새 이미지 추가
+      addToHistory(result.data.image_url, result.data.version);
+      
+      // 좌측 이미지 업데이트
+      document.getElementById('char-current-image').src = result.data.image_url;
+      
+      showToast('이미지가 생성되었습니다!', 'success');
+    }
+  } catch (error) {
+    showToast('생성 실패: ' + error.message, 'error');
+  } finally {
+    hideLoading();
+  }
+});
+3.3.3 수정 요청 반영하여 재생성
+
+Copydocument.getElementById('btn-regenerate-with-request').addEventListener('click', async () => {
+  const request = document.getElementById('char-request').value;
+  
+  if (!request.trim()) {
+    showToast('수정 요청 사항을 입력해주세요.', 'warning');
+    return;
+  }
+  
+  showLoading('수정 요청을 반영하여 이미지를 생성하고 있습니다...');
+  
+  try {
+    // LLM에게 프롬프트 수정 요청
+    const response = await fetch('/api/characters/regenerate-with-request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        character_id: currentCharacterId,
+        current_prompt_kr: document.getElementById('char-prompt-kr').value,
+        current_prompt_en: document.getElementById('char-prompt-en').value,
+        modification_request: request,
+        quality: getQuality(),
+        aspect_ratio: '1:1'
+      })
+    });
+    
+    const result = await response.json();
+    
+    if (result.success) {
+      // 수정된 프롬프트 표시
+      document.getElementById('char-prompt-kr').value = result.data.prompt_kr;
+      document.getElementById('char-prompt-en').value = result.data.prompt_en;
+      
+      // 새 이미지 추가
+      addToHistory(result.data.image_url, result.data.version);
+      document.getElementById('char-current-image').src = result.data.image_url;
+      
+      // 수정 요청 초기화
+      document.getElementById('char-request').value = '';
+      
+      showToast('수정된 이미지가 생성되었습니다!', 'success');
+    }
+  } catch (error) {
+    showToast('생성 실패: ' + error.message, 'error');
+  } finally {
+    hideLoading();
+  }
+});
+모달 2: 스토리보드 이미지 상세 모달
+레이아웃
+┌─────────────────────────────────────────────────────────┐
+│ 씬 1 - 궁궐 안뜰 (Part 1)                          [✕]  │
+├──────────────────┬──────────────────────────────────────┤
+│                  │                                      │
+│   [큰 이미지]     │  📍 대본 위치                         │
+│   (800x450px)    │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━      │
+│    16:9 비율     │  Part: Part 1                        │
+│                  │  범위: "씬 1: 궁궐 안뜰" ~            │
+│  [⬇️ 다운로드]    │       "윤해린: 오늘도 평화로운..."    │
+│                  │                                      │
+│                  │  [🔍 대본에서 하이라이트]              │
+│                  │                                      │
+│                  │  📝 원본 대본                         │
+│                  │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━      │
+│                  │  [textarea - 읽기 전용, 3줄]         │
+│                  │  씬 1: 궁궐 안뜰                      │
+│                  │  (윤해린이 조용히 걷고 있다)          │
+│                  │  윤해린: "오늘도 평화로운..."         │
+│                  │                                      │
+│                  │  🇰🇷 한글 프롬프트                    │
+│                  │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━      │
+│                  │  [textarea - 수정 가능, 4줄]         │
+│                  │                                      │
+│                  │  🇺🇸 영문 프롬프트                    │
+│                  │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━      │
+│                  │  [textarea - 수정 가능, 4줄]         │
+│                  │                                      │
+│                  │  💬 수정 요청 사항                    │
+│                  │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━      │
+│                  │  [textarea, 3줄]                     │
+│                  │                                      │
+│                  │  [🔄 현재 프롬프트로 재생성]          │
+│                  │  [✨ 수정 요청 반영하여 재생성]        │
+│                  │                                      │
+│                  │  📜 생성 히스토리 (5개)               │
+│                  │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━      │
+│                  │  [v1] [v2] [v3] [v4] [v5]            │
+│                  │  ↓ 스크롤 가능                        │
+│                  │                                      │
+└──────────────────┴──────────────────────────────────────┘
+기능 동작
+4.1 대본 하이라이트
+
+Copydocument.getElementById('btn-highlight-script').addEventListener('click', () => {
+  const scriptRange = currentImage.script_range;
+  
+  // 1. 모달 닫기
+  closeImageModal();
+  
+  // 2. 해당 파트 탭으로 이동
+  switchToTab(currentImage.part);
+  
+  // 3. 대본 textarea에서 해당 범위 하이라이트
+  const textarea = document.querySelector(`#tab-${currentImage.part} textarea`);
+  const content = textarea.value;
+  
+  const startIndex = content.indexOf(scriptRange.start);
+  const endIndex = content.indexOf(scriptRange.end) + scriptRange.end.length;
+  
+  // 텍스트 선택
+  textarea.focus();
+  textarea.setSelectionRange(startIndex, endIndex);
+  
+  // 스크롤하여 보이게
+  textarea.scrollTop = (startIndex / content.length) * textarea.scrollHeight;
+  
+  // 하이라이트 효과
+  textarea.classList.add('highlight-animation');
+  setTimeout(() => {
+    textarea.classList.remove('highlight-animation');
+  }, 2000);
+});
+4.2 이미지 재생성 (스토리보드)
+
+Copy// 동일한 로직이지만, 캐릭터 일관성 유지
+async function regenerateStoryboardImage(imageId, promptKr, promptEn, request) {
+  const response = await fetch('/api/storyboard/regenerate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      image_id: imageId,
+      prompt_kr: promptKr,
+      prompt_en: promptEn,
+      modification_request: request,
+      character_references: getSelectedCharacterVersions(), // 중요!
+      quality: getQuality(),
+      aspect_ratio: getAspectRatio()
+    })
+  });
+  
+  return response.json();
+}
+
+function getSelectedCharacterVersions() {
+  // 각 캐릭터의 선택된 버전 반환
+  return {
+    "char1": {
+      "character_id": "char1",
+      "image_url": "https://cdn.example.com/char1_v3.png",
+      "version": 3
+    },
+    "char2": {
+      "character_id": "char2",
+      "image_url": "https://cdn.example.com/char2_v1.png",
+      "version": 1
+    }
+    // ...
+  };
+}
+모달 3: 이미지 비교 모달
+레이아웃 (2~4개 이미지 비교)
+┌─────────────────────────────────────────────────────────┐
+│ 이미지 비교 (3개 선택)                             [✕]  │
+├─────────────────┬───────────────┬───────────────────────┤
+│                 │               │                       │
+│   [이미지 1]     │   [이미지 2]   │     [이미지 3]         │
+│   (v1)          │   (v2)        │     (v3)              │
+│                 │               │                       │
+│   프롬프트 차이: │ + 눈동자 파란색│   + 미소 표정          │
+│   (기본)        │               │   + 밝은 조명          │
+│                 │               │                       │
+│  [⬇️ 다운로드]   │  [⬇️ 다운로드] │   [⬇️ 다운로드]        │
+│  [✓ 선택]       │  [  선택  ]   │   [  선택  ]          │
+│                 │               │                       │
+└─────────────────┴───────────────┴───────────────────────┘
+HTML 구조
+Copy<div id="compare-modal" class="modal" style="display: none;">
+  <div class="modal-overlay"></div>
+  <div class="modal-content compare-modal-content">
+    <div class="modal-header">
+      <h2>이미지 비교 (<span id="compare-count">3</span>개 선택)</h2>
+      <button class="modal-close">✕</button>
+    </div>
+    
+    <div class="modal-body">
+      <div class="compare-grid">
+        <!-- 이미지 1 -->
+        <div class="compare-item">
+          <img src="char1_v1.png" alt="버전 1">
+          <div class="compare-info">
+            <span class="version-badge">v1 (기본)</span>
+            <p class="prompt-diff">원본 프롬프트</p>
+          </div>
+          <div class="compare-actions">
+            <button class="btn-download">⬇️ 다운로드</button>
+            <button class="btn-select">✓ 이 버전 선택</button>
+          </div>
+        </div>
+        
+        <!-- 이미지 2 -->
+        <div class="compare-item">
+          <img src="char1_v2.png" alt="버전 2">
+          <div class="compare-info">
+            <span class="version-badge">v2</span>
+            <p class="prompt-diff">
+              <span class="diff-added">+ 눈동자 파란색</span>
+            </p>
+          </div>
+          <div class="compare-actions">
+            <button class="btn-download">⬇️ 다운로드</button>
+            <button class="btn-select selected">✓ 선택됨</button>
+          </div>
+        </div>
+        
+        <!-- 이미지 3~4 -->
+      </div>
+    </div>
+  </div>
+</div>
+기능 동작
+Copy// 비교 모달 열기
+function openCompareModal(selectedVersions) {
+  const modal = document.getElementById('compare-modal');
+  const grid = modal.querySelector('.compare-grid');
+  
+  grid.innerHTML = '';
+  
+  selectedVersions.forEach((version, index) => {
+    const item = createCompareItem(version, index === 0);
+    grid.appendChild(item);
+  });
+  
+  modal.style.display = 'block';
+}
+
+// 비교 항목 생성
+function createCompareItem(version, isOriginal) {
+  const item = document.createElement('div');
+  item.className = 'compare-item';
+  
+  // 프롬프트 차이 계산
+  const promptDiff = calculatePromptDiff(
+    originalPrompt,
+    version.prompt
+  );
+  
+  item.innerHTML = `
+    <img src="${version.image_url}" alt="버전 ${version.version}">
+    <div class="compare-info">
+      <span class="version-badge">
+        v${version.version} ${isOriginal ? '(기본)' : ''}
+      </span>
+      <p class="prompt-diff">${promptDiff}</p>
+    </div>
+    <div class="compare-actions">
+      <button class="btn-download" data-url="${version.image_url}">
+        ⬇️ 다운로드
+      </button>
+      <button 
+        class="btn-select ${version.selected ? 'selected' : ''}"
+        data-version="${version.version}"
+      >
+        ✓ ${version.selected ? '선택됨' : '이 버전 선택'}
+      </button>
+    </div>
+  `;
+  
+  return item;
+}
+
+// 프롬프트 차이 계산
+function calculatePromptDiff(original, modified) {
+  // 간단한 diff (실제로는 더 정교한 알고리즘 필요)
+  const originalWords = original.split(',').map(s => s.trim());
+  const modifiedWords = modified.split(',').map(s => s.trim());
+  
+  const added = modifiedWords.filter(w => !originalWords.includes(w));
+  const removed = originalWords.filter(w => !modifiedWords.includes(w));
+  
+  let diffHtml = '';
+  
+  if (added.length > 0) {
+    diffHtml += added.map(w => `<span class="diff-added">+ ${w}</span>`).join('<br>');
+  }
+  
+  if (removed.length > 0) {
+    diffHtml += removed.map(w => `<span class="diff-removed">- ${w}</span>`).join('<br>');
+  }
+  
+  return diffHtml || '변경 없음';
+}
+🔌 백엔드 API 사양
+API 베이스 URL
+개발: http://localhost:8000
+프로덕션: https://yaddam-api.railway.app
+인증
+세션 기반 (쿠키)
+또는 JWT 토큰 (선택사항)
+공통 응답 형식
+Copy{
+  "success": true | false,
+  "data": { ... },
+  "error": "error message" (success=false인 경우),
+  "timestamp": "2026-01-17T12:34:56Z"
+}
+엔드포인트 1: 프로젝트 생성
+CopyPOST /api/projects/create
+Content-Type: application/json
+
+{
+  "name": "야담_프로젝트_20260117",
+  "style": "dreamlike",
+  "custom_style": "움직이는 하울의 성 그림체",
+  "quality": "2k",
+  "aspect_ratio": "16:9"
+}
+응답:
+
+Copy{
+  "success": true,
+  "data": {
+    "project_id": "uuid-1234-5678",
+    "name": "야담_프로젝트_20260117",
+    "created_at": "2026-01-17T12:00:00Z"
+  }
+}
+엔드포인트 2: 대본 분석
+CopyPOST /api/scripts/analyze
+Content-Type: application/json
+
+{
+  "project_id": "uuid-1234",
+  "scripts": {
+    "intro": "바로 그 순간, 윤해린의 얼굴이...",
+    "part1": "씬 1: 궁궐 안뜰...",
+    "part2": "...",
+    ...
+  },
+  "style": "dreamlike",
+  "custom_style": "움직이는 하울의 성 그림체"
+}
+처리 로직:
+
+LLM (GPT-4/Claude)에게 대본 분석 요청
+장면 전환 감지
+캐릭터 추출 (대사 기준)
+각 씬별 프롬프트 베이스 생성
+이미지 개수 옵션 계산
+프롬프트 예시 (LLM에게 전송):
+
+You are an expert in Korean historical drama screenplay analysis.
+
+Analyze the following screenplay and extract:
+1. All scene transitions (location, time, characters, mood)
+2. Main characters with dialogue (name, role, description)
+3. Generate image count options (all scenes, essential only, minimal)
+
+Screenplay:
+{scripts}
+
+Style: {style}
+Custom Style: {custom_style}
+
+Return JSON format:
+{
+  "scenes": [...],
+  "characters": [...],
+  "image_count_options": {...}
+}
+응답:
+
+Copy{
+  "success": true,
+  "data": {
+    "total_scenes": 12,
+    "scene_transitions": [
+      {
+        "scene_number": 1,
+        "scene_name": "궁궐 안뜰 - 아침",
+        "part": "part1",
+        "script_range": {
+          "start": "씬 1: 궁궐 안뜰",
+          "end": "윤해린: \"오늘도 평화로운...\""
+        },
+        "characters": ["윤해린"],
+        "location": "궁궐 안뜰",
+        "time": "아침",
+        "mood": "평온",
+        "prompt_base_kr": "조선시대 궁궐 안뜰, 아침 햇살, 평온한 분위기",
+        "prompt_base_en": "Joseon dynasty palace courtyard, morning sunlight, serene atmosphere"
+      }
+      // 씬 2~12
+    ],
+    "image_count_options": {
+      "all": 50,
+      "essential": 35,
+      "minimal": 20
+    },
+    "characters": [
+      {
+        "id": "char1",
+        "name": "윤해린",
+        "name_en": "Yoon Haerin",
+        "mentions": 27,
+        "role": "주인공",
+        "description": "20대 여성, 한복 차림 (분홍색 저고리, 파란색 치마), 평온한 표정, 긴 검은 머리",
+        "first_appearance": "part1"
+      }
+      // 캐릭터 2~5
+    ]
+  }
+}
+엔드포인트 3: 등장인물 이미지 생성
+CopyPOST /api/characters/generate
+Content-Type: application/json
+
+{
+  "project_id": "uuid-1234",
+  "characters": [
+    {
+      "id": "char1",
+      "name": "윤해린",
+      "description": "20대 여성, 한복 차림...",
+      "style": "dreamlike",
+      "custom_style": "움직이는 하울의 성 그림체"
+    }
+  ],
+  "quality": "2k",
+  "aspect_ratio": "1:1"
+}
+처리 로직:
+
+각 캐릭터마다 LLM으로 프롬프트 생성
+AI 이미지 생성 API 호출 (GenSpark/Stable Diffusion/DALL-E)
+생성된 이미지 URL 저장
+데이터베이스에 기록
+프롬프트 생성 예시:
+
+Create a professional image generation prompt for a character in Korean historical drama.
+
+Character Info:
+- Name: 윤해린 (Yoon Haerin)
+- Description: 20대 여성, 한복 차림 (분홍색 저고리, 파란색 치마), 평온한 표정, 긴 검은 머리
+- Style: Dreamlike Watercolor
+- Custom Style: 움직이는 하울의 성 그림체
+
+Generate:
+1. Korean prompt (detailed, for AI image generation)
+2. English prompt (detailed, professional)
+
+Requirements:
+- Include character appearance, clothing, expression
+- Add style keywords
+- Add quality keywords (high quality, detailed, masterpiece)
+- Format for {AI_MODEL_NAME} (e.g., Stable Diffusion, DALL-E)
+응답:
+
+Copy{
+  "success": true,
+  "data": {
+    "characters": [
+      {
+        "id": "char1",
+        "name": "윤해린",
+        "image_url": "https://cdn.example.com/projects/uuid-1234/chars/char1_v1.png",
+        "prompt_kr": "20대 한국 여성, 전통 한복 차림 (분홍색 저고리, 파란색 치마), 평온한 표정, 긴 검은 머리, 궁궐 배경, 아침 햇살, 부드러운 조명, 드림라이크 수채화 스타일, 움직이는 하울의 성 그림체, 고품질, 디테일한, 마스터피스",
+        "prompt_en": "20s Korean woman, traditional hanbok dress (pink jeogori, blue chima), serene expression, long black hair, palace courtyard background, morning sunlight, soft lighting, dreamlike watercolor style, Howl's Moving Castle art style, high quality, detailed, masterpiece, 8k",
+        "version": 1,
+        "generated_at": "2026-01-17T12:05:00Z"
+      }
+    ]
+  }
+}
+엔드포인트 4: 캐릭터 이미지 재생성
+CopyPOST /api/characters/regenerate
+Content-Type: application/json
+
+{
+  "character_id": "char1",
+  "prompt_kr": "수정된 한글 프롬프트...",
+  "prompt_en": "Modified English prompt...",
+  "quality": "2k",
+  "aspect_ratio": "1:1"
+}
+응답:
+
+Copy{
+  "success": true,
+  "data": {
+    "character_id": "char1",
+    "image_url": "https://cdn.example.com/projects/uuid-1234/chars/char1_v2.png",
+    "prompt_kr": "...",
+    "prompt_en": "...",
+    "version": 2,
+    "generated_at": "2026-01-17T12:10:00Z"
+  }
+}
+엔드포인트 5: 수정 요청 반영하여 재생성
+CopyPOST /api/characters/regenerate-with-request
+Content-Type: application/json
+
+{
+  "character_id": "char1",
+  "current_prompt_kr": "기존 한글 프롬프트...",
+  "current_prompt_en": "Current English prompt...",
+  "modification_request": "눈동자 색을 파란색으로 변경",
+  "quality": "2k",
+  "aspect_ratio": "1:1"
+}
+처리 로직:
+
+LLM에게 프롬프트 수정 요청
+기존 프롬프트 + 수정 요청 → 새 프롬프트 생성
+새 프롬프트로 이미지 생성
+LLM 프롬프트:
+
+Modify the following image generation prompt based on user's request.
+
+Current Korean Prompt:
+{current_prompt_kr}
+
+Current English Prompt:
+{current_prompt_en}
+
+User's Modification Request:
+{modification_request}
+
+Generate modified prompts (Korean and English).
+Keep the original style and quality keywords.
+Only change what the user requested.
+응답:
+
+Copy{
+  "success": true,
+  "data": {
+    "character_id": "char1",
+    "image_url": "https://cdn.example.com/projects/uuid-1234/chars/char1_v3.png",
+    "prompt_kr": "20대 한국 여성, ... 파란 눈동자, ...",
+    "prompt_en": "20s Korean woman, ... blue eyes, ...",
+    "version": 3,
+    "modifications": ["눈동자 색: 파란색"],
+    "generated_at": "2026-01-17T12:15:00Z"
+  }
+}
+엔드포인트 6: 스토리보드 이미지 생성
+CopyPOST /api/storyboard/generate
+Content-Type: application/json
+
+{
+  "project_id": "uuid-1234",
+  "scene_mode": "essential",  // "all", "essential", "minimal"
+  "character_references": {
+    "char1": {
+      "character_id": "char1",
+      "image_url": "https://cdn.example.com/chars/char1_v3.png",
+      "version": 3
+    },
+    "char2": { ... }
+  },
+  "quality": "2k",
+  "aspect_ratio": "16:9"
+}
+처리 로직:
+
+scene_mode에 따라 생성할 씬 선택
+각 씬마다:
+씬 정보 (장소, 시간, 분위기) + 대본 내용
+등장하는 캐릭터 참조 이미지 (일관성 유지)
+LLM으로 프롬프트 생성
+AI 이미지 생성 (캐릭터 참조 포함)
+진행률 업데이트 (Redis/DB)
+응답 (즉시):
+
+Copy{
+  "success": true,
+  "data": {
+    "job_id": "job-5678",
+    "status": "processing",
+    "total_images": 35,
+    "estimated_time_seconds": 280
+  }
+}
+엔드포인트 7: 스토리보드 생성 진행률 조회
+CopyGET /api/storyboard/progress/{project_id}
+응답:
+
+Copy{
+  "success": true,
+  "data": {
+    "status": "processing",  // "processing", "completed", "error"
+    "progress": {
+      "total": 35,
+      "completed": 15,
+      "current_scene": "씬 8",
+      "percentage": 43
+    },
+    "estimated_time_remaining_seconds": 160,
+    "latest_images": [
+      {
+        "image_id": "img15",
+        "scene_number": 8,
+        "scene_name": "씬 8 - 밤 산속",
+        "image_url": "https://cdn.example.com/projects/uuid-1234/storyboard/img15_v1.png",
+        "part": "part2",
+        "script_range": {
+          "start": "씬 8: 어두운 산속",
+          "end": "백도식: \"조심하시오!\""
+        }
+      }
+    ]
+  }
+}
+프론트엔드 폴링:
+
+Copy// 1초마다 진행률 확인
+const progressInterval = setInterval(async () => {
+  const result = await fetch(`/api/storyboard/progress/${projectId}`);
+  const data = await result.json();
+  
+  if (data.success) {
+    // 진행률 업데이트
+    updateProgressBar(
+      data.data.progress.completed,
+      data.data.progress.total,
+      data.data.progress.current_scene,
+      data.data.estimated_time_remaining_seconds
+    );
+    
+    // 새 이미지 추가
+    if (data.data.latest_images) {
+      data.data.latest_images.forEach(img => {
+        addImageToGrid(img);
+      });
+    }
+    
+    // 완료 확인
+    if (data.data.status === 'completed') {
+      clearInterval(progressInterval);
+      showToast('스토리보드 생성 완료!', 'success');
+    }
+  }
+}, 1000);
+엔드포인트 8: 스토리보드 이미지 재생성
+CopyPOST /api/storyboard/regenerate
+Content-Type: application/json
+
+{
+  "image_id": "img15",
+  "prompt_kr": "수정된 프롬프트...",
+  "prompt_en": "Modified prompt...",
+  "modification_request": "배경을 더 어둡게" (선택사항),
+  "character_references": {
+    "char1": { ... },
+    "char2": { ... }
+  },
+  "quality": "2k",
+  "aspect_ratio": "16:9"
+}
+응답:
+
+Copy{
+  "success": true,
+  "data": {
+    "image_id": "img15",
+    "image_url": "https://cdn.example.com/projects/uuid-1234/storyboard/img15_v2.png",
+    "prompt_kr": "...",
+    "prompt_en": "...",
+    "version": 2,
+    "generated_at": "2026-01-17T12:30:00Z"
+  }
+}
+엔드포인트 9: 이미지 다운로드
+개별 다운로드:
+
+CopyGET /api/download/image/{image_id}
+선택 다운로드 (ZIP):
+
+CopyPOST /api/download/selected
+Content-Type: application/json
+
+{
+  "image_ids": ["img1", "img5", "img12"]
+}
+응답:
+
+Content-Type: application/zip
+Content-Disposition: attachment; filename="selected_images.zip"
+
+[ZIP 파일 바이너리]
+파트별 다운로드 (ZIP):
+
+CopyGET /api/download/part/{project_id}/{part_number}
+응답:
+
+Content-Type: application/zip
+Content-Disposition: attachment; filename="part1_images.zip"
+
+[ZIP 파일 바이너리]
+엔드포인트 10: 프로젝트 데이터 저장 (엑셀)
+CopyGET /api/export/excel/{project_id}
+처리:
+
+프로젝트 메타데이터
+캐릭터 정보 (이름, 설명, 프롬프트, 이미지 URL)
+스토리보드 이미지 정보 (씬, 프롬프트, 이미지 URL)
+Excel 파일 생성 (openpyxl/xlsxwriter)
+응답:
+
+Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+Content-Disposition: attachment; filename="yaddam_project_20260117.xlsx"
+
+[Excel 파일 바이너리]
+Excel 구조:
+
+시트 1: 프로젝트 정보
+┌──────────┬────────────────────────┐
+│ 항목     │ 값                     │
+├──────────┼────────────────────────┤
+│ 프로젝트명│ 야담_프로젝트_20260117 │
+│ 스타일   │ Dreamlike Watercolor   │
+│ 생성일   │ 2026-01-17             │
+│ 총 이미지│ 40장                   │
+└──────────┴────────────────────────┘
+
+시트 2: 주요 등장인물
+┌────┬────────┬──────┬──────────────────┬─────────────┬────────────┐
+│ ID │ 이름   │ 역할 │ 설명             │ 한글프롬프트│ 이미지 URL │
+├────┼────────┼──────┼──────────────────┼─────────────┼────────────┤
+│ 1  │윤해린  │주인공│20대 여성, 한복...│...          │https://... │
+│ 2  │백도식  │조력자│30대 남성, 관복...│...          │https://... │
+└────┴────────┴──────┴──────────────────┴─────────────┴────────────┘
+
+시트 3: 스토리보드
+┌────┬──────┬────┬──────────┬─────────────┬────────────┐
+│ ID │ 씬   │Part│ 대본 위치│ 한글프롬프트│ 이미지 URL │
+├────┼──────┼────┼──────────┼─────────────┼────────────┤
+│ 1  │씬 1  │ 1  │앞~뒷     │...          │https://... │
+│ 2  │씬 2  │ 1  │앞~뒷     │...          │https://... │
+└────┴──────┴────┴──────────┴─────────────┴────────────┘
+💾 데이터베이스 스키마
+Table: projects
+CopyCREATE TABLE projects (
+  id VARCHAR(36) PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  style VARCHAR(50),
+  custom_style TEXT,
+  quality VARCHAR(10),
+  aspect_ratio VARCHAR(10),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+Table: scripts
+CopyCREATE TABLE scripts (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  project_id VARCHAR(36) NOT NULL,
+  part VARCHAR(20) NOT NULL,  -- 'intro', 'part1', 'part2', ...
+  content TEXT NOT NULL,
+  char_count INT,
+  uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  INDEX idx_project_part (project_id, part)
+);
+Table: characters
+CopyCREATE TABLE characters (
+  id VARCHAR(36) PRIMARY KEY,
+  project_id VARCHAR(36) NOT NULL,
+  name VARCHAR(100) NOT NULL,
+  name_en VARCHAR(100),
+  mentions INT DEFAULT 0,
+  role VARCHAR(50),
+  description TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  INDEX idx_project (project_id)
+);
+Table: character_images
+CopyCREATE TABLE character_images (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  character_id VARCHAR(36) NOT NULL,
+  version INT NOT NULL,
+  image_url TEXT NOT NULL,
+  prompt_kr TEXT,
+  prompt_en TEXT,
+  modifications JSON,  -- ["눈동자: 파란색", ...]
+  is_selected BOOLEAN DEFAULT FALSE,
+  generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE,
+  INDEX idx_character_version (character_id, version)
+);
+Table: scenes
+CopyCREATE TABLE scenes (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  project_id VARCHAR(36) NOT NULL,
+  scene_number INT NOT NULL,
+  scene_name VARCHAR(255),
+  part VARCHAR(20),
+  script_range_start TEXT,
+  script_range_end TEXT,
+  location VARCHAR(255),
+  time VARCHAR(50),
+  mood VARCHAR(100),
+  characters JSON,  -- ["char1", "char2", ...]
+  prompt_base_kr TEXT,
+  prompt_base_en TEXT,
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  INDEX idx_project_scene (project_id, scene_number)
+);
+Table: storyboard_images
+CopyCREATE TABLE storyboard_images (
+  id VARCHAR(36) PRIMARY KEY,
+  project_id VARCHAR(36) NOT NULL,
+  scene_id INT NOT NULL,
+  version INT NOT NULL DEFAULT 1,
+  image_url TEXT NOT NULL,
+  prompt_kr TEXT,
+  prompt_en TEXT,
+  character_references JSON,  -- {"char1": {"url": "...", "version": 3}}
+  is_selected BOOLEAN DEFAULT FALSE,
+  generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  FOREIGN KEY (scene_id) REFERENCES scenes(id) ON DELETE CASCADE,
+  INDEX idx_project_scene (project_id, scene_id)
+);
+Table: generation_jobs
+CopyCREATE TABLE generation_jobs (
+  id VARCHAR(36) PRIMARY KEY,
+  project_id VARCHAR(36) NOT NULL,
+  job_type VARCHAR(20) NOT NULL,  -- 'characters', 'storyboard'
+  status VARCHAR(20) NOT NULL,  -- 'processing', 'completed', 'error'
+  total_count INT NOT NULL,
+  completed_count INT DEFAULT 0,
+  current_item VARCHAR(255),
+  started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  completed_at TIMESTAMP NULL,
+  error_message TEXT,
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  INDEX idx_project_status (project_id, status)
+);
+🎨 CSS 스타일 가이드
+Glassmorphism 효과
+Copy.glass-card {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+버튼 스타일
+Copy.primary-btn {
+  background: linear-gradient(135deg, #6366F1 0%, #06B6D4 100%);
+  color: white;
+  border: none;
+  padding: 14px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+.primary-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+}
+
+.primary-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+이미지 카드 호버 효과
+Copy.image-card {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.image-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+.image-card .image-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.image-card:hover .image-overlay {
+  opacity: 1;
+}
+진행률 바 애니메이션
+Copy.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #6366F1 0%, #06B6D4 100%);
+  border-radius: 6px;
+  transition: width 0.5s ease;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+대본 하이라이트 애니메이션
+Copytextarea.highlight-animation {
+  animation: highlight-flash 2s ease-in-out;
+}
+
+@keyframes highlight-flash {
+  0% {
+    background-color: transparent;
+  }
+  10% {
+    background-color: rgba(99, 102, 241, 0.3);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+⌨️ 키보드 단축키 구현
+Copydocument.addEventListener('keydown', (e) => {
+  // Ctrl + S: 대본 저장
+  if (e.ctrlKey && e.key === 's') {
+    e.preventDefault();
+    saveAllScripts();
+    showToast('대본이 저장되었습니다.', 'success');
+  }
+  
+  // R: 선택된 이미지 재생성
+  if (e.key === 'r' || e.key === 'R') {
+    const selectedImage = document.querySelector('.image-card.selected');
+    if (selectedImage) {
+      regenerateImage(selectedImage.dataset.imageId);
+    }
+  }
+  
+  // ←: 이전 이미지
+  if (e.key === 'ArrowLeft') {
+    const currentImage = document.querySelector('.image-card.selected');
+    if (currentImage && currentImage.previousElementSibling) {
+      selectImage(currentImage.previousElementSibling);
+    }
+  }
+  
+  // →: 다음 이미지
+  if (e.key === 'ArrowRight') {
+    const currentImage = document.querySelector('.image-card.selected');
+    if (currentImage && currentImage.nextElementSibling) {
+      selectImage(currentImage.nextElementSibling);
+    }
+  }
+  
+  // Escape: 모달 닫기
+  if (e.key === 'Escape') {
+    closeAllModals();
+  }
+});
+
+function selectImage(imageCard) {
+  // 기존 선택 해제
+  document.querySelectorAll('.image-card').forEach(card => {
+    card.classList.remove('selected');
+  });
+  
+  // 새 이미지 선택
+  imageCard.classList.add('selected');
+  imageCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+🧪 테스트 시나리오
+시나리오 1: 기본 워크플로우
+웹사이트 접속
+파트 수를 3으로 설정
+Intro, Part 1, Part 2 대본 입력
+스타일 "Dreamlike" 선택
+"대본 분석하기" 클릭
+분석 결과 확인 (씬 12개, 캐릭터 5명)
+장면 설정 "꼭 필요한 곳만 (35장)" 선택
+"등장인물 생성" 클릭
+생성된 캐릭터 이미지 확인
+캐릭터 클릭 → 모달에서 프롬프트 수정 → 재생성
+원하는 버전 선택
+"스토리보드 생성" 클릭
+진행률 확인 (실시간 업데이트)
+생성된 이미지 확인
+Part 1 필터 클릭 → Part 1 이미지만 표시
+이미지 선택 → ZIP 다운로드
+시나리오 2: 이미지 재생성
+스토리보드 이미지 클릭
+모달 열림
+프롬프트 수정
+"현재 프롬프트로 재생성" 클릭
+새 이미지 생성 확인
+히스토리에서 이전 버전과 비교
+비교 모달에서 2개 선택 → 좌우 비교
+원하는 버전 선택
+다운로드
+시나리오 3: 대본 하이라이트
+스토리보드 이미지 클릭
+"대본에서 하이라이트" 버튼 클릭
+해당 Part 탭으로 자동 이동
+대본 textarea에서 해당 범위 하이라이트
+하이라이트 애니메이션 확인
+📦 배포 가이드
+프론트엔드 (Vercel)
+vercel.json:
+
+Copy{
+  "version": 2,
+  "builds": [
+    {
+      "src": "index.html",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/$1"
+    }
+  ]
+}
+배포 명령:
+
+Copy# Vercel CLI 설치
+npm i -g vercel
+
+# 로그인
+vercel login
+
+# 배포
+vercel --prod
+백엔드 (Railway)
+Procfile:
+
+web: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+railway.json:
+
+Copy{
+  "build": {
+    "builder": "NIXPACKS"
+  },
+  "deploy": {
+    "startCommand": "uvicorn app.main:app --host 0.0.0.0 --port $PORT",
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  }
+}
+requirements.txt:
+
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+pydantic==2.5.0
+sqlalchemy==2.0.25
+pymysql==1.1.0
+python-multipart==0.0.6
+aiohttp==3.9.1
+openai==1.10.0
+anthropic==0.18.0
+pillow==10.2.0
+openpyxl==3.1.2
+python-dotenv==1.0.0
+redis==5.0.1
+환경 변수 (Railway):
+
+# 데이터베이스
+DATABASE_URL=mysql+pymysql://user:password@host:port/dbname
+
+# AI API 키
+GENSPARK_API_KEY=your_api_key_here
+OPENAI_API_KEY=your_api_key_here
+ANTHROPIC_API_KEY=your_api_key_here
+
+# CORS
+ALLOWED_ORIGINS=https://yaddam-generator.vercel.app
+
+# 파일 저장
+AWS_ACCESS_KEY_ID=your_key
+AWS_SECRET_ACCESS_KEY=your_secret
+AWS_S3_BUCKET=yaddam-images
+
+# Redis (선택사항)
+REDIS_URL=redis://default:password@host:port
+📝 추가 개선 사항 (선택사항)
+1. 프로젝트 저장 및 불러오기
+LocalStorage에 프로젝트 자동 저장
+"프로젝트 불러오기" 메뉴
+여러 프로젝트 관리
+2. 이미지 편집
+간단한 필터 적용
+크롭/리사이즈
+텍스트 오버레이
+3. 대본 템플릿
+시대극 대본 템플릿 제공
+샘플 대본 다운로드
+4. 협업 기능
+프로젝트 공유 링크
+댓글 기능
+버전 관리
+5. 통계 및 분석
+이미지 생성 통계
+프롬프트 효율성 분석
+사용 패턴 분석
+🎯 성공 기준
+기능적 요구사항
+ 파트 1~10 개 조정 가능
+ 콜드오픈(Intro) 별도 탭
+ 대본 입력 (파트당 10,000자)
+ 대본 분석 (장면 전환, 캐릭터 추출)
+ 이미지 개수 3가지 옵션 제안
+ 등장인물 이미지 자동 생성 (대사 기준)
+ 캐릭터 이미지 재생성 (프롬프트 수정)
+ 스토리보드 이미지 생성 (캐릭터 일관성 유지)
+ 대본 위치 표시 (앞문단~뒷문단)
+ 파트별 필터링
+ 이미지 비교 모드 (2~4개)
+ 진행률 상세 표시
+ 단축키 지원
+ 개별/선택/Part별 ZIP 다운로드
+ 엑셀 데이터 저장
+비기능적 요구사항
+ 로딩 시간 < 2초
+ 이미지 생성 시간 < 10분 (35장 기준)
+ 반응형 디자인 (1024px 이상)
+ 크로스 브라우저 호환
+ 접근성 (WCAG 2.1 AA)
+ 오류 처리 및 사용자 피드백
+📞 문의 및 지원
+개발 문의: dev@yaddam-generator.com
+버그 리포트: bugs@yaddam-generator.com
+기능 제안: features@yaddam-generator.com
+
+개발 사양서 버전: v5.0
+최종 업데이트: 2026-01-17
+작성자: AI Development Team
+
+이 개발 사양서는 야담 이미지 생성기 v5.0의 완전한 구현 가이드입니다. 모든 기능, API, UI, 데이터베이스 스키마가 상세히 정의되어 있습니다.
+
