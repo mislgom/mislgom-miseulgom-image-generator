@@ -14,7 +14,7 @@ const API = {
 
     // Gemini API 설정
     GEMINI_API_KEY: '', // 사용자가 입력해야 함
-    GEMINI_API_URL: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
+    GEMINI_API_URL: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent',
 
     // 헬스 체크
     async checkHealth() {
@@ -154,14 +154,14 @@ const API = {
     // ========== 로컬 Stable Diffusion WebUI API ==========
     
     /**
-     * 로컬 SD WebUI로 이미지 생성 (txt2img) - v3.0 FLUX.1 Dev 전환
+     * 로컬 SD WebUI로 이미지 생성 (txt2img) - v3.0 시대 자동 감지 + 자연어 프롬프트
      * @param {Object} params - 생성 파라미터
      * @param {string} params.prompt - 프롬프트
      * @param {string} params.style - 스타일 (애니메이션 모델 자동 전환)
      * @param {number} params.width - 너비 (기본: 1024)
      * @param {number} params.height - 높이 (기본: 1024)
-     * @param {number} params.steps - 샘플링 스텝 (기본: 25)
-     * @param {number} params.cfg_scale - CFG 스케일 (FLUX 기본: 3.5)
+     * @param {number} params.steps - 샘플링 스텝 (기본: 30)
+     * @param {number} params.cfg_scale - CFG 스케일 (기본: 7.5)
      * @param {boolean} params.enableADetailer - ADetailer 활성화 (기본: true)
      * @returns {Promise<string>} - 이미지 Data URL
      */
@@ -172,20 +172,20 @@ const API = {
                 style,
                 width = 1024,
                 height = 1024,
-                steps = 25,  // 🔧 FLUX는 20~30 스텝으로 충분
-                cfg_scale = 3.5,  // 🔧 FLUX 권장 CFG: 1.5~4.0, 기본 3.5
+                steps = 30,  // SDXL 기본 스텝
+                cfg_scale = 7.5,  // SDXL 기본 CFG
                 negative_prompt = 'low quality, blurry, distorted, deformed',
-                enableADetailer = true  // 🆕 ADetailer 활성화 옵션
+                enableADetailer = true  // ADetailer 활성화 옵션
             } = params;
 
             // 🎯 스타일별 모델 자동 선택
-            let modelName = 'flux1-dev-fp8.safetensors';  // 🆕 기본 모델: FLUX.1 Dev
+            let modelName = 'juggernautXL_ragnarokBy.safetensors';  // 기본 모델
 
             if (style === 'lyrical-anime' || style === 'action-anime') {
-                modelName = 'animagineXL_v31.safetensors';  // 애니메이션 전용 (SDXL 유지)
+                modelName = 'animagineXL40_v4Opt.safetensors';  // 애니메이션 전용
                 console.log('🎌 애니메이션 모델로 전환:', modelName);
             } else {
-                console.log('🚀 FLUX.1 Dev 모델 사용:', modelName);
+                console.log('🎨 기본 모델 사용:', modelName);
             }
 
             // 모델 변경 (필요 시)
@@ -230,11 +230,8 @@ const API = {
                 }
             } : {};
 
-            // 🔧 FLUX/SDXL 모델별 최적 샘플러 선택
-            let samplerName = 'Euler';  // FLUX 기본: Euler 또는 DPM++ 2M
-            if (style === 'lyrical-anime' || style === 'action-anime') {
-                samplerName = 'DPM++ 2M Karras';  // SDXL 애니메이션: Karras
-            }
+            // SDXL 최적 샘플러
+            let samplerName = 'DPM++ 2M Karras';  // SDXL 기본
 
             const requestBody = {
                 prompt: prompt,
@@ -721,7 +718,7 @@ ${scriptsJson}
 **중요 원칙:**
 1. 등장인물 정보를 **반드시** 프롬프트에 포함하여 일관성 유지
 2. 장면의 시각적 요소를 구체적으로 묘사 (장소, 시간, 조명, 분위기)
-3. FLUX.1 Dev 모델에 최적화된 자연스러운 문장형 프롬프트 작성
+3. 자연스러운 문장형 프롬프트 작성
 4. "masterpiece, best quality" 같은 부스터 태그는 사용하지 않음
 5. 중국풍/일본풍 요소를 피하고 한국 문화에 집중
 
@@ -739,7 +736,7 @@ ${scriptsJson}
                     system_instruction: systemInstruction,
                     contents: [{
                         parts: [{
-                            text: `다음 장면을 FLUX.1 Dev용 영어 이미지 프롬프트로 변환하세요:
+                            text: `다음 장면을 영어 이미지 프롬프트로 변환하세요:
 
 **장면 대본:**
 ${scriptText}
