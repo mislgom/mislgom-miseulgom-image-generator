@@ -1019,7 +1019,25 @@
 
 .style-option input[type="radio"]:checked ~ .style-content .style-thumbnail {
     border-color: var(--accent-primary);
-    box-shadow: 0 0 0 2px var(--accent-primary-alpha);
+    box-shadow: 0 0 0 3px var(--accent-primary), 0 0 20px rgba(99, 102, 241, 0.5), 0 4px 12px rgba(0, 0, 0, 0.2);
+    transform: scale(1.05);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.style-option input[type="radio"]:checked ~ .style-content {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(99, 102, 241, 0.05));
+    border-radius: 12px;
+    padding: 4px;
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
+}
+
+.style-option:hover .style-thumbnail {
+    transform: scale(1.02);
+    transition: all 0.2s ease;
+}
+
+.style-thumbnail {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 /* 🆕 이미지 라이트박스 배너 (호버 모드) */

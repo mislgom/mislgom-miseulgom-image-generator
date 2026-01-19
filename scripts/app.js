@@ -563,8 +563,13 @@ const App = {
         this.closeAllModals();
     },
 
-    // 모달 수정 적용 처리
+    // 모달 수정 적용 처리 - v3.0 (히스토리 저장)
     async handleModalEditApply() {
+        const modal = document.getElementById('image-detail-modal');
+        const type = modal?.dataset.type;
+        const index = modal?.dataset.index;
+        const id = modal?.dataset.id;
+
         const editRequest = document.getElementById('modal-edit-request');
         if (!editRequest || !editRequest.value.trim()) {
             UI.showToast('수정 요청사항을 입력하세요', 'error');
@@ -572,36 +577,27 @@ const App = {
         }
 
         const editText = editRequest.value.trim();
-        
-        // 현재 이미지 URL 가져오기
+
         const modalImage = document.getElementById('modal-image');
-        if (!modalImage || !modalImage.src) {
-            UI.showToast('이미지를 찾을 수 없습니다', 'error');
+        const promptEn = document.getElementById('modal-prompt-en');
+        const promptKo = document.getElementById('modal-prompt-ko');
+
+        if (!modalImage || !modalImage.src || !promptEn) {
+            UI.showToast('이미지 또는 프롬프트를 찾을 수 없습니다', 'error');
             return;
         }
 
         const currentImageUrl = modalImage.src;
-        
-        // 원본 프롬프트 가져오기
-        const promptEn = document.getElementById('modal-prompt-en');
-        
-        if (!promptEn) {
-            UI.showToast('프롬프트를 찾을 수 없습니다', 'error');
-            return;
-        }
-        
-        // 원본 프롬프트 저장
         const originalPrompt = promptEn.value;
-        
-        // ✨ 수정 프롬프트: 원본 + 수정 요청
         const editPrompt = `${originalPrompt}, ${editText}`;
-        
+
         UI.showToast('이미지 수정 중... (img2img)', 'info');
 
         try {
-            // 해상도 가져오기
-            const resolution = CharacterManager.getResolutionFromAspectRatio(CharacterManager.state.currentAspectRatio);
-            
+            const resolution = CharacterManager.getResolutionFromAspectRatio(
+                CharacterManager.state.currentAspectRatio
+            );
+
             // img2img로 이미지 수정
             const editedImageUrl = await API.editImageLocal(
                 currentImageUrl,
@@ -610,20 +606,63 @@ const App = {
                 resolution.height
             );
 
-            // 모달 이미지 업데이트
+            // ✅ 타입별 데이터 저장 및 히스토리 추가
+            if (type === 'character' && index !== undefined) {
+                const character = CharacterManager.state.characters[parseInt(index)];
+
+                // 히스토리 추가
+                const version = (character.history?.length || 0) + 1;
+                if (!character.history) character.history = [];
+                character.history.push({
+                    version: version,
+                    imageUrl: editedImageUrl,
+                    promptKo: `수정됨: ${editText}`,
+                    promptEn: editPrompt,
+                    timestamp: Date.now()
+                });
+
+                // 메인 이미지 업데이트
+                character.imageUrl = editedImageUrl;
+                character.promptEn = editPrompt;
+
+                // UI 업데이트
+                CharacterManager.renderCharacters();
+                CharacterManager.renderCharacterHistory(character);
+
+            } else if (type === 'scene' && id) {
+                const scene = StoryboardManager.state.scenes.find(s => s.id === id);
+
+                // 히스토리 추가
+                const version = (scene.history?.length || 0) + 1;
+                if (!scene.history) scene.history = [];
+                scene.history.push({
+                    version: version,
+                    imageUrl: editedImageUrl,
+                    promptKo: `수정됨: ${editText}`,
+                    promptEn: editPrompt,
+                    timestamp: Date.now()
+                });
+
+                // 메인 이미지 업데이트
+                scene.imageUrl = editedImageUrl;
+                scene.promptEn = editPrompt;
+
+                // UI 업데이트
+                StoryboardManager.renderScenes();
+                StoryboardManager.renderSceneHistory(scene);
+            }
+
+            // 모달 이미지 및 프롬프트 업데이트
             modalImage.src = editedImageUrl;
-            
-            // 프롬프트 업데이트
             promptEn.value = editPrompt;
+            if (promptKo) promptKo.value = `수정됨: ${editText}`;
 
             UI.showToast('✅ 이미지 수정 완료!', 'success');
-            
-            // 수정 요청 입력창 초기화
             editRequest.value = '';
 
         } catch (error) {
             console.error('❌ 이미지 수정 실패:', error);
-            UI.showToast('이미지 수정 실패. 재생성을 시도하세요.', 'error');
+            UI.showToast(`이미지 수정 실패: ${error.message}`, 'error');
         }
     },
 

@@ -154,14 +154,14 @@ const API = {
     // ========== 로컬 Stable Diffusion WebUI API ==========
     
     /**
-     * 로컬 SD WebUI로 이미지 생성 (txt2img) - v2.0 ADetailer 추가
+     * 로컬 SD WebUI로 이미지 생성 (txt2img) - v3.0 FLUX.1 Dev 전환
      * @param {Object} params - 생성 파라미터
      * @param {string} params.prompt - 프롬프트
      * @param {string} params.style - 스타일 (애니메이션 모델 자동 전환)
      * @param {number} params.width - 너비 (기본: 1024)
      * @param {number} params.height - 높이 (기본: 1024)
-     * @param {number} params.steps - 샘플링 스텝 (기본: 30)
-     * @param {number} params.cfg_scale - CFG 스케일 (기본: 7.5)
+     * @param {number} params.steps - 샘플링 스텝 (기본: 25)
+     * @param {number} params.cfg_scale - CFG 스케일 (FLUX 기본: 3.5)
      * @param {boolean} params.enableADetailer - ADetailer 활성화 (기본: true)
      * @returns {Promise<string>} - 이미지 Data URL
      */
@@ -172,18 +172,20 @@ const API = {
                 style,
                 width = 1024,
                 height = 1024,
-                steps = 30,
-                cfg_scale = 7.5,
+                steps = 25,  // 🔧 FLUX는 20~30 스텝으로 충분
+                cfg_scale = 3.5,  // 🔧 FLUX 권장 CFG: 1.5~4.0, 기본 3.5
                 negative_prompt = 'low quality, blurry, distorted, deformed',
                 enableADetailer = true  // 🆕 ADetailer 활성화 옵션
             } = params;
 
             // 🎯 스타일별 모델 자동 선택
-            let modelName = 'juggernautXL_v9.safetensors';  // 기본 모델
-            
+            let modelName = 'flux1-dev-fp8.safetensors';  // 🆕 기본 모델: FLUX.1 Dev
+
             if (style === 'lyrical-anime' || style === 'action-anime') {
-                modelName = 'animagineXL_v31.safetensors';  // 애니메이션 전용
+                modelName = 'animagineXL_v31.safetensors';  // 애니메이션 전용 (SDXL 유지)
                 console.log('🎌 애니메이션 모델로 전환:', modelName);
+            } else {
+                console.log('🚀 FLUX.1 Dev 모델 사용:', modelName);
             }
 
             // 모델 변경 (필요 시)
@@ -228,7 +230,12 @@ const API = {
                 }
             } : {};
 
-            // 🔧 ADetailer가 없을 경우를 대비한 기본 요청
+            // 🔧 FLUX/SDXL 모델별 최적 샘플러 선택
+            let samplerName = 'Euler';  // FLUX 기본: Euler 또는 DPM++ 2M
+            if (style === 'lyrical-anime' || style === 'action-anime') {
+                samplerName = 'DPM++ 2M Karras';  // SDXL 애니메이션: Karras
+            }
+
             const requestBody = {
                 prompt: prompt,
                 negative_prompt: negative_prompt,
@@ -236,7 +243,7 @@ const API = {
                 height: height,
                 steps: steps,
                 cfg_scale: cfg_scale,
-                sampler_name: 'DPM++ 2M Karras',
+                sampler_name: samplerName,
                 batch_size: 1,
                 n_iter: 1
             };
@@ -396,27 +403,57 @@ const API = {
         try {
             const scriptsJson = JSON.stringify(scripts, null, 2);
 
-            // 🆕 System Instruction 정의
+            // 🆕 System Instruction 정의 (v3.0 - 시대 판별 + 디테일 복식)
             const systemInstruction = {
                 parts: [{
-                    text: `당신은 영상 대본을 분석하여 컷 수를 계산하고 등장인물을 추출하는 전문가입니다.
+                    text: `당신은 한국 드라마/이야기 대본을 분석하는 전문가입니다. 시대 배경을 정확히 판별하고, 등장인물을 추출하며, 장면 수를 계산합니다.
 
 **역할:**
-1. 대본에서 등장인물을 자동으로 추출합니다.
-2. 시각적 변화를 감지하여 필요한 컷(장면) 수를 계산합니다.
+1. 대본의 시대 배경을 자동으로 판별합니다 (조선시대/현대/미래/SF)
+2. 등장인물을 추출하고 시대에 맞는 복식/헤어스타일을 구체적으로 묘사합니다
+3. 시각적 변화를 감지하여 필요한 장면 수를 계산합니다
+
+**시대 판별 규칙:**
+- **조선시대**: "갓", "한복", "양반", "사또", "궁궐", "초가", "기생", "상투" 등
+- **현대**: "자동차", "휴대폰", "회사", "아파트", "카페", "인터넷", "양복", "청바지" 등
+- **미래/SF**: "로봇", "우주", "사이버", "AI", "홀로그램", "타임머신" 등
+- **판타지**: "마법", "드래곤", "이세계", "던전" 등
 
 **등장인물 추출 규칙:**
-- 대본에 등장하는 모든 주요 인물을 추출하세요.
-- 한글 이름과 영문 이름을 함께 제공하세요.
-- 시각적 묘사(외형, 복장, 특징)를 한글과 영문으로 작성하세요.
-- 묘사는 구체적이고 이미지 생성에 적합해야 합니다.
+- 대본에 등장하는 모든 주요 인물을 추출하세요
+- 한글 이름과 영문 이름(로마자 표기)을 함께 제공하세요
+- 시대에 맞는 복식과 헤어스타일을 **매우 구체적으로** 묘사하세요
+
+**시대별 복식/헤어 디테일:**
+
+조선시대 남성:
+- 복식: "wearing traditional Joseon hanbok with dopo overcoat, gat (traditional Korean hat), silk belt"
+- 머리: "topknot hairstyle (sangtu) with traditional Korean headband"
+
+조선시대 여성:
+- 복식: "wearing elegant Joseon hanbok with jeogori (short jacket) and chima (long skirt), daenggi hair ribbon"
+- 머리: "traditional Korean braided hairstyle with daenggi ribbon, jokduri crown (for married women)"
+
+현대 남성:
+- 복식: "wearing modern business suit with tie, or casual jeans and t-shirt"
+- 머리: "modern short hairstyle, clean shaven or light beard"
+
+현대 여성:
+- 복식: "wearing modern casual dress, or office blouse and skirt, contemporary Korean fashion"
+- 머리: "modern hairstyle with long flowing hair or short bob cut, natural makeup"
+
+**중요: 등장인물 설명은 반드시 다음을 포함하세요:**
+1. 나이대 (20s, 30s, 40s, 50s)
+2. 시대에 맞는 구체적인 복식 (조선시대: jeogori/chima/gat, 현대: suit/jeans)
+3. 헤어스타일 (조선시대: sangtu/daenggi, 현대: modern hairstyle)
+4. 얼굴 특징 (kind expression, sharp eyes, gentle smile 등)
 
 **컷 수 계산 규칙 (Visual Trigger Rule):**
 다음 4가지 시각적 변화를 감지하여 컷을 추가하세요:
-1. **장소 변화**: 새로운 장소가 등장하면 컷 추가 (예: 집 → 거리 → 숲)
+1. **장소 변화**: 새로운 장소가 등장하면 컷 추가
 2. **인물 등장/퇴장**: 주요 인물이 들어오거나 나갈 때 컷 추가
-3. **행동 전환**: 중요한 행동이 바뀔 때 컷 추가 (예: 걷기 → 싸움 → 대화)
-4. **감정 변화**: 분위기나 감정이 크게 바뀔 때 컷 추가 (예: 평온 → 긴장 → 슬픔)
+3. **행동 전환**: 중요한 행동이 바뀔 때 컷 추가
+4. **감정 변화**: 분위기나 감정이 크게 바뀔 때 컷 추가
 
 **컷 수 제한:**
 - totalScenes: 전체 장면 수 (최대 50장)
@@ -428,10 +465,15 @@ const API = {
                 }]
             };
 
-            // 🆕 JSON Schema 정의 (Gemini API 호환)
+            // 🆕 JSON Schema 정의 (Gemini API 호환) - v3.0 era 추가
             const responseSchema = {
                 type: "object",
                 properties: {
+                    era: {
+                        type: "string",
+                        description: "대본의 시대 배경 (joseon/modern/future/fantasy)",
+                        enum: ["joseon", "modern", "future", "fantasy"]
+                    },
                     characters: {
                         type: "array",
                         description: "대본에 등장하는 주요 인물 목록",
@@ -448,14 +490,19 @@ const API = {
                                 },
                                 descriptionKo: {
                                     type: "string",
-                                    description: "한글 시각적 묘사 (외형, 복장, 특징)"
+                                    description: "한글 시각적 묘사 (나이대, 외형, 복장, 헤어스타일, 특징)"
                                 },
                                 descriptionEn: {
                                     type: "string",
-                                    description: "영문 시각적 묘사 (이미지 생성용)"
+                                    description: "영문 시각적 묘사 (이미지 생성용, 매우 구체적으로)"
+                                },
+                                era: {
+                                    type: "string",
+                                    description: "이 인물의 시대 배경 (joseon/modern/future/fantasy)",
+                                    enum: ["joseon", "modern", "future", "fantasy"]
                                 }
                             },
-                            required: ["name", "nameEn", "descriptionKo", "descriptionEn"]
+                            required: ["name", "nameEn", "descriptionKo", "descriptionEn", "era"]
                         }
                     },
                     scenes: {
@@ -498,7 +545,7 @@ const API = {
                         }
                     }
                 },
-                required: ["characters", "scenes"]
+                required: ["era", "characters", "scenes"]
             };
 
             console.log('🤖 Gemini API 호출 중 (System Instruction + JSON Mode)...');
@@ -644,8 +691,100 @@ ${scriptsJson}
         const result = { characters, scenes };
         console.log('✅ 규칙 기반 분석 완료:', result);
         console.log('⚠️ 경고: Gemini API 사용 시 더 정확한 등장인물 추출과 장면 분석이 가능합니다.');
-        
+
         return result;
+    },
+
+    /**
+     * Gemini로 장면별 프롬프트 생성 - v3.0 (등장인물 일관성 유지)
+     * @param {Object} params - { scriptText, characters, style, era }
+     * @returns {Promise<Object>} - { promptEn, promptKo, negative }
+     */
+    async generateScenePromptWithGemini(params) {
+        if (!this.GEMINI_API_KEY) {
+            console.warn('⚠️ Gemini API 키 없음, 규칙 기반 프롬프트 사용');
+            return null;
+        }
+
+        try {
+            const { scriptText, characters, style, era } = params;
+
+            // 등장인물 정보 문자열로 변환
+            const characterInfo = characters && characters.length > 0
+                ? characters.map(c => `${c.nameEn}: ${c.descriptionEn}`).join('\n')
+                : '등장인물 정보 없음';
+
+            const systemInstruction = {
+                parts: [{
+                    text: `당신은 이미지 생성 프롬프트 전문가입니다. 한국 드라마/이야기 장면을 영어 프롬프트로 변환합니다.
+
+**중요 원칙:**
+1. 등장인물 정보를 **반드시** 프롬프트에 포함하여 일관성 유지
+2. 장면의 시각적 요소를 구체적으로 묘사 (장소, 시간, 조명, 분위기)
+3. FLUX.1 Dev 모델에 최적화된 자연스러운 문장형 프롬프트 작성
+4. "masterpiece, best quality" 같은 부스터 태그는 사용하지 않음
+5. 중국풍/일본풍 요소를 피하고 한국 문화에 집중
+
+**출력 형식:**
+순수 영문 프롬프트만 출력하세요. JSON 형식이나 추가 설명은 포함하지 마세요.`
+                }]
+            };
+
+            const response = await fetch(`${this.GEMINI_API_URL}?key=${this.GEMINI_API_KEY}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    system_instruction: systemInstruction,
+                    contents: [{
+                        parts: [{
+                            text: `다음 장면을 FLUX.1 Dev용 영어 이미지 프롬프트로 변환하세요:
+
+**장면 대본:**
+${scriptText}
+
+**등장인물 정보 (반드시 포함):**
+${characterInfo}
+
+**스타일:** ${style}
+**시대 배경:** ${era || 'joseon'}
+
+**요구사항:**
+- 등장인물이 있다면 정확한 설명 포함 (예: "featuring Yoon Haerin wearing elegant Joseon hanbok")
+- 장소, 시간대, 조명, 분위기를 구체적으로 묘사
+- 자연스러운 문장형 프롬프트로 작성
+
+영어 프롬프트만 출력하세요:`
+                        }]
+                    }],
+                    generationConfig: {
+                        temperature: 0.7,
+                        topP: 0.9,
+                        topK: 40
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`Gemini API 오류: ${response.status}`);
+            }
+
+            const data = await response.json();
+            const promptEn = data.candidates[0].content.parts[0].text.trim();
+
+            console.log('✅ Gemini 장면 프롬프트 생성:', promptEn.substring(0, 100) + '...');
+
+            return {
+                en: promptEn,
+                ko: scriptText.substring(0, 50) + '...',
+                negative: 'low quality, blurry, distorted, ugly, bad anatomy, Chinese style, Japanese anime, text, watermark'
+            };
+
+        } catch (error) {
+            console.error('❌ Gemini 장면 프롬프트 생성 실패:', error);
+            return null;
+        }
     }
 };
 
