@@ -134,6 +134,10 @@ const ScriptManager = {
         if (!textarea) return;
 
         panel.addEventListener('dragover', (e) => {
+            // 🔧 현재 활성화된 패널만 드롭 허용
+            if (!panel.classList.contains('active')) {
+                return;
+            }
             e.preventDefault();
             e.stopPropagation();
             panel.classList.add('drag-over');
@@ -146,6 +150,10 @@ const ScriptManager = {
         });
 
         panel.addEventListener('drop', async (e) => {
+            // 🔧 현재 활성화된 패널만 드롭 허용
+            if (!panel.classList.contains('active')) {
+                return;
+            }
             e.preventDefault();
             e.stopPropagation();
             panel.classList.remove('drag-over');
@@ -230,10 +238,13 @@ const ScriptManager = {
             panel.dataset.part = i.toString();
             panel.innerHTML = `
                 <div class="script-editor">
-                    <textarea 
-                        id="script-part-${i}" 
-                        class="script-textarea" 
-                        placeholder="Part ${i} 대본을 입력하세요... (최대 10,000자)"
+                    <textarea
+                        id="script-part-${i}"
+                        class="script-textarea"
+                        placeholder="💡 Part ${i} 대본을 입력하세요... (최대 10,000자)
+
+📁 파일을 이 영역에 드래그하면 Part ${i}에만 입력됩니다
+📤 전체 대본을 올리려면 위의 '전체 대본 올리기' 버튼을 사용하세요"
                         maxlength="10000"
                     ></textarea>
                     <div class="script-footer">
