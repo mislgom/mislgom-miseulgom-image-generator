@@ -178,11 +178,11 @@ const API = {
                 enableADetailer = true  // 🆕 ADetailer 활성화 옵션
             } = params;
 
-            // 🎯 스타일별 모델 자동 선택
-            let modelName = 'juggernautXL_v9.safetensors';  // 기본 모델
+         // 🎯 스타일별 모델 자동 선택
+            let modelName = 'juggernautXL_ragnarokBy.safetensors';  // 기본 모델 (선생님 파일 이름)
             
             if (style === 'lyrical-anime' || style === 'action-anime') {
-                modelName = 'animagineXL_v31.safetensors';  // 애니메이션 전용
+                modelName = 'animagineXL40_v4Opt.safetensors';  // 애니메이션 전용 (선생님 파일 이름)
                 console.log('🎌 애니메이션 모델로 전환:', modelName);
             }
 
