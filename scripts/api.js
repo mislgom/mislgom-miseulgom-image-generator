@@ -9,12 +9,76 @@ const API = {
         ? 'http://localhost:8000' 
         : 'https://miseulgom-backend.railway.app',
 
-    // Stable Diffusion WebUI URL
-    SDWEBUI_URL: 'http://127.0.0.1:7860',
+    // 이미지 생성 API 설정 (LocalStorage에서 로드)
+    IMAGE_API_TYPE: null, // 'ai_studio' 또는 'vertex_ai'
+    IMAGE_API_KEY: null,
+    IMAGE_PROJECT_ID: null,
 
-    // Gemini API 설정
+    // Rate Limit 보호
+    lastRequestTime: 0,
+    minDelay: 3000, // 최소 3초
+    maxDelay: 6000, // 최대 6초
+
+    // Gemini 대본 분석 API 설정
     GEMINI_API_KEY: '', // 사용자가 입력해야 함
     GEMINI_API_URL: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent',
+
+    // ========== LocalStorage 기반 API 설정 관리 ==========
+
+    /**
+     * LocalStorage에서 이미지 생성 API 설정 로드
+     */
+    loadImageApiSettings() {
+        this.IMAGE_API_TYPE = localStorage.getItem('image_api_type');
+        this.IMAGE_API_KEY = localStorage.getItem('image_api_key');
+        this.IMAGE_PROJECT_ID = localStorage.getItem('image_project_id');
+
+        console.log('📥 이미지 API 설정 로드:', {
+            type: this.IMAGE_API_TYPE,
+            hasKey: !!this.IMAGE_API_KEY,
+            hasProjectId: !!this.IMAGE_PROJECT_ID
+        });
+
+        return {
+            apiType: this.IMAGE_API_TYPE,
+            apiKey: this.IMAGE_API_KEY,
+            projectId: this.IMAGE_PROJECT_ID
+        };
+    },
+
+    /**
+     * 이미지 생성 API 설정 저장
+     * @param {string} apiType - 'ai_studio' 또는 'vertex_ai'
+     * @param {string} apiKey - API 키
+     * @param {string} projectId - Vertex AI 프로젝트 ID (선택)
+     */
+    saveImageApiSettings(apiType, apiKey, projectId = null) {
+        localStorage.setItem('image_api_type', apiType);
+        localStorage.setItem('image_api_key', apiKey);
+
+        if (projectId) {
+            localStorage.setItem('image_project_id', projectId);
+        } else {
+            localStorage.removeItem('image_project_id');
+        }
+
+        this.IMAGE_API_TYPE = apiType;
+        this.IMAGE_API_KEY = apiKey;
+        this.IMAGE_PROJECT_ID = projectId;
+
+        console.log('💾 이미지 API 설정 저장 완료:', {
+            type: apiType,
+            hasKey: !!apiKey,
+            hasProjectId: !!projectId
+        });
+    },
+
+    /**
+     * API 설정이 완료되었는지 확인
+     */
+    isImageApiConfigured() {
+        return !!(this.IMAGE_API_TYPE && this.IMAGE_API_KEY);
+    },
 
     // 헬스 체크
     async checkHealth() {
@@ -151,231 +215,219 @@ const API = {
         }
     },
 
-    // ========== 로컬 Stable Diffusion WebUI API ==========
-    
+    // ========== Google Image Generation API ==========
+
     /**
-     * 로컬 SD WebUI로 이미지 생성 (txt2img) - v3.0 Flux2-Dev FP8 최적화
+     * Rate Limit 보호를 위한 딜레이 (3~6초 랜덤)
+     */
+    async _waitBeforeRequest() {
+        const elapsed = Date.now() - this.lastRequestTime;
+        const requiredDelay = Math.random() * (this.maxDelay - this.minDelay) + this.minDelay;
+
+        if (elapsed < requiredDelay) {
+            const waitTime = requiredDelay - elapsed;
+            console.log(`⏳ Rate Limit 보호: ${(waitTime/1000).toFixed(1)}초 대기...`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
+
+        this.lastRequestTime = Date.now();
+    },
+
+    /**
+     * Exponential Backoff 재시도 로직
+     * @param {Function} func - 실행할 함수
+     * @param {number} maxRetries - 최대 재시도 횟수
+     */
+    async _retryWithBackoff(func, maxRetries = 3) {
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                return await func();
+            } catch (error) {
+                const errorStr = error.toString();
+
+                // 429 Rate Limit 에러
+                if (errorStr.includes('429') || errorStr.includes('RESOURCE_EXHAUSTED')) {
+                    if (attempt === maxRetries - 1) {
+                        throw new Error('일일 사용량을 초과했습니다. 잠시 후 다시 시도해주세요.');
+                    }
+
+                    // Exponential backoff: 5초, 10초, 20초 + jitter
+                    const waitTime = Math.pow(2, attempt) * 5000 + Math.random() * 2000;
+                    console.warn(`⚠️ Rate Limit 도달. ${(waitTime/1000).toFixed(1)}초 후 재시도 (${attempt + 1}/${maxRetries})...`);
+                    await new Promise(resolve => setTimeout(resolve, waitTime));
+                } else {
+                    throw error;
+                }
+            }
+        }
+    },
+
+    /**
+     * Google Image Generation API로 이미지 생성
      * @param {Object} params - 생성 파라미터
      * @param {string} params.prompt - 프롬프트
-     * @param {string} params.style - 스타일
-     * @param {number} params.width - 너비 (기본: 1024)
-     * @param {number} params.height - 높이 (기본: 1024)
-     * @param {number} params.steps - 샘플링 스텝 (기본: 25)
-     * @param {number} params.cfg_scale - CFG 스케일 (Flux 기본: 3.5)
-     * @param {boolean} params.enableADetailer - ADetailer 활성화 (기본: true)
+     * @param {string} params.aspectRatio - 비율 (기본: '1:1')
      * @returns {Promise<string>} - 이미지 Data URL
      */
     async generateImageLocal(params) {
+        // API 설정 로드
+        this.loadImageApiSettings();
+
+        if (!this.isImageApiConfigured()) {
+            throw new Error('이미지 생성 API 설정이 필요합니다. 설정 페이지에서 API 키를 등록해주세요.');
+        }
+
+        const { prompt, aspectRatio = '1:1' } = params;
+
+        console.log('🎨 Google Image API 호출:', {
+            type: this.IMAGE_API_TYPE,
+            prompt: prompt.substring(0, 50) + '...',
+            aspectRatio
+        });
+
+        // Rate Limit 보호 및 재시도
+        return await this._retryWithBackoff(async () => {
+            await this._waitBeforeRequest();
+
+            if (this.IMAGE_API_TYPE === 'ai_studio') {
+                return await this._generateWithAIStudio(prompt, aspectRatio);
+            } else if (this.IMAGE_API_TYPE === 'vertex_ai') {
+                return await this._generateWithVertexAI(prompt, aspectRatio);
+            } else {
+                throw new Error('알 수 없는 API 타입입니다.');
+            }
+        });
+    },
+
+    /**
+     * AI Studio API로 이미지 생성
+     */
+    async _generateWithAIStudio(prompt, aspectRatio) {
         try {
-            const {
-                prompt,
-                style,
-                width = 1024,
-                height = 1024,
-                steps = 25,  // 🔧 Flux2 최적 스텝: 20~30
-                cfg_scale = 3.5,  // 🔧 Flux2 권장 CFG: 1.5~4.0
-                negative_prompt = 'low quality, blurry, distorted, deformed',
-                enableADetailer = true  // ADetailer 활성화 옵션
-            } = params;
-
-            // 🚀 Flux2-Dev FP8 모델 (모든 스타일에 단일 모델 사용)
-            const modelName = 'flux2DevFP8_GGUF_fp8Mixed.safetensors';
-            console.log('🚀 Flux2-Dev FP8 모델 사용:', modelName);
-
-            // 모델 변경 (필요 시)
-            try {
-                await fetch(`${this.SDWEBUI_URL}/sdapi/v1/options`, {
+            const response = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${this.IMAGE_API_KEY}`,
+                {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        sd_model_checkpoint: modelName
-                    })
-                });
-                console.log('✅ 모델 설정 완료:', modelName);
-            } catch (modelError) {
-                console.warn('⚠️ 모델 변경 실패 (기본 모델 사용):', modelError);
-            }
-
-            console.log('🎨 로컬 SD WebUI 호출:', { 
-                prompt, 
-                width, 
-                height, 
-                steps, 
-                cfg_scale, 
-                model: modelName,
-                adetailer: enableADetailer ? 'ON' : 'OFF'
-            });
-
-            // 🆕 ADetailer 설정 (SD WebUI 확장 프로그램 필요)
-            const adetailerConfig = enableADetailer ? {
-                "ADetailer": {
-                    "args": [
-                        {
-                            "ad_model": "face_yolov8n.pt",
-                            "ad_prompt": "high quality, detailed face",
-                            "ad_negative_prompt": "low quality, blurry face",
-                            "ad_denoising_strength": 0.4,
-                            "ad_inpaint_only_masked": true,
-                            "ad_confidence": 0.3
+                        contents: [{
+                            parts: [{
+                                text: prompt
+                            }]
+                        }],
+                        generationConfig: {
+                            responseModalities: ["image"],
+                            imageAspectRatio: aspectRatio
                         }
-                    ]
+                    })
                 }
-            } : {};
-
-            // 🔧 Flux2 최적 샘플러
-            const samplerName = 'Euler';  // Flux 권장: Euler 또는 DPM++ 2M
-
-            const requestBody = {
-                prompt: prompt,
-                negative_prompt: negative_prompt,
-                width: width,
-                height: height,
-                steps: steps,
-                cfg_scale: cfg_scale,
-                sampler_name: samplerName,
-                batch_size: 1,
-                n_iter: 1
-            };
-
-            // ADetailer 활성화 시에만 추가 (설치되지 않았을 때 422 에러 방지)
-            if (enableADetailer && Object.keys(adetailerConfig).length > 0) {
-                requestBody.alwayson_scripts = adetailerConfig;
-            }
-
-            const response = await fetch(`${this.SDWEBUI_URL}/sdapi/v1/txt2img`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(requestBody)
-            });
+            );
 
             if (!response.ok) {
-                throw new Error(`SD WebUI 응답 오류: ${response.status}`);
+                const errorData = await response.json().catch(() => ({}));
+                if (response.status === 401) {
+                    throw new Error('API 키가 올바르지 않습니다. 설정을 확인해주세요.');
+                } else if (response.status === 429) {
+                    throw new Error('RESOURCE_EXHAUSTED');
+                } else if (errorData.error?.message?.includes('content')) {
+                    throw new Error('이미지를 생성할 수 없는 내용입니다. 프롬프트를 수정해주세요.');
+                }
+                throw new Error(`AI Studio API 오류: ${response.status}`);
             }
 
             const data = await response.json();
-            
-            if (!data.images || data.images.length === 0) {
-                throw new Error('SD WebUI: 이미지 생성 실패');
+
+            // 이미지 데이터 추출
+            const imagePart = data.candidates?.[0]?.content?.parts?.find(part => part.inlineData);
+
+            if (!imagePart || !imagePart.inlineData) {
+                throw new Error('AI Studio: 이미지 생성 실패');
             }
 
-            // Base64 이미지를 Data URL로 변환
-            const imageDataUrl = `data:image/png;base64,${data.images[0]}`;
-            console.log('✅ 로컬 이미지 생성 완료', enableADetailer ? '(ADetailer 얼굴 보정 적용)' : '');
-            
+            const imageDataUrl = `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
+            console.log('✅ AI Studio 이미지 생성 완료');
+
             return imageDataUrl;
 
         } catch (error) {
-            console.error('❌ 로컬 SD WebUI 오류:', error);
+            console.error('❌ AI Studio API 오류:', error);
             throw error;
         }
     },
 
     /**
-     * 로컬 SD WebUI로 이미지 수정 (img2img) - v3.0 Flux2-Dev FP8 최적화
-     * @param {string} imageUrl - 원본 이미지 URL 또는 Data URL
-     * @param {string} editPrompt - 수정 프롬프트
-     * @param {number} width - 너비
-     * @param {number} height - 높이
-     * @param {boolean} enableADetailer - ADetailer 활성화 (기본: true)
-     * @returns {Promise<string>} - 수정된 이미지 Data URL
+     * Vertex AI API로 이미지 생성
      */
-    async editImageLocal(imageUrl, editPrompt, width = 1024, height = 1024, enableADetailer = true) {
+    async _generateWithVertexAI(prompt, aspectRatio) {
         try {
-            console.log('✏️ 로컬 SD WebUI img2img 호출 (Flux2-Dev FP8):', {
-                editPrompt,
-                width,
-                height,
-                adetailer: enableADetailer ? 'ON' : 'OFF'
-            });
+            if (!this.IMAGE_PROJECT_ID) {
+                throw new Error('Vertex AI 사용 시 Project ID가 필요합니다.');
+            }
 
-            // 이미지 URL을 Base64로 변환
-            const base64Image = await this.imageUrlToBase64(imageUrl);
+            // Vertex AI Imagen 3 호출
+            const endpoint = `https://us-central1-aiplatform.googleapis.com/v1/projects/${this.IMAGE_PROJECT_ID}/locations/us-central1/publishers/google/models/imagen-3.0-generate-001:predict`;
 
-            // 🆕 ADetailer 설정
-            const adetailerConfig = enableADetailer ? {
-                ADetailer: {
-                    args: [{
-                        ad_model: "face_yolov8n.pt",
-                        ad_prompt: "high quality, detailed face, clear eyes, natural skin texture",
-                        ad_negative_prompt: "low quality, blurry face, distorted face, bad anatomy",
-                        ad_denoising_strength: 0.35,  // img2img는 조금 약하게
-                        ad_inpaint_only_masked: true,
-                        ad_confidence: 0.3,
-                        ad_dilate_erode: 4
-                    }]
-                }
-            } : {};
-
-            const response = await fetch(`${this.SDWEBUI_URL}/sdapi/v1/img2img`, {
+            const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.IMAGE_API_KEY}`
                 },
                 body: JSON.stringify({
-                    init_images: [base64Image],
-                    prompt: editPrompt,
-                    negative_prompt: 'low quality, blurry, distorted',
-                    width: width,
-                    height: height,
-                    steps: 25,  // 🔧 Flux2 최적 스텝
-                    cfg_scale: 3.5,  // 🔧 Flux2 권장 CFG
-                    denoising_strength: 0.5,
-                    sampler_name: 'Euler',  // 🔧 Flux2 최적 샘플러
-                    // 🆕 ADetailer 얼굴 보정
-                    alwayson_scripts: adetailerConfig
+                    instances: [{
+                        prompt: prompt
+                    }],
+                    parameters: {
+                        sampleCount: 1,
+                        aspectRatio: aspectRatio
+                    }
                 })
             });
 
             if (!response.ok) {
-                throw new Error(`SD WebUI img2img 오류: ${response.status}`);
+                if (response.status === 401 || response.status === 403) {
+                    throw new Error('Vertex AI 인증 실패. API 키 또는 권한을 확인해주세요.');
+                } else if (response.status === 429) {
+                    throw new Error('RESOURCE_EXHAUSTED');
+                }
+                throw new Error(`Vertex AI API 오류: ${response.status}`);
             }
 
             const data = await response.json();
-            const editedImageDataUrl = `data:image/png;base64,${data.images[0]}`;
-            
-            console.log('✅ 이미지 수정 완료', enableADetailer ? '(ADetailer 얼굴 보정 적용)' : '');
-            return editedImageDataUrl;
+
+            const imageData = data.predictions?.[0]?.bytesBase64Encoded;
+
+            if (!imageData) {
+                throw new Error('Vertex AI: 이미지 생성 실패');
+            }
+
+            const imageDataUrl = `data:image/png;base64,${imageData}`;
+            console.log('✅ Vertex AI 이미지 생성 완료');
+
+            return imageDataUrl;
 
         } catch (error) {
-            console.error('❌ 로컬 img2img 오류:', error);
+            console.error('❌ Vertex AI API 오류:', error);
             throw error;
         }
     },
 
     /**
-     * 이미지 URL을 Base64로 변환
-     * @param {string} url - 이미지 URL
-     * @returns {Promise<string>} - Base64 문자열 (data:image/png;base64, 제외)
+     * 이미지 수정 (img2img) - Google API는 지원하지 않음
+     * @deprecated Google Gemini는 img2img를 지원하지 않습니다.
      */
-    async imageUrlToBase64(url) {
-        try {
-            // Data URL인 경우 Base64 부분만 추출
-            if (url.startsWith('data:image')) {
-                return url.split(',')[1];
-            }
+    async editImageLocal(imageUrl, editPrompt) {
+        console.warn('⚠️ 이미지 수정 기능은 현재 지원하지 않습니다.');
 
-            // 일반 URL인 경우 fetch로 가져오기
-            const response = await fetch(url);
-            const blob = await response.blob();
-            
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                    const base64 = reader.result.split(',')[1];
-                    resolve(base64);
-                };
-                reader.onerror = reject;
-                reader.readAsDataURL(blob);
-            });
+        // 새로운 이미지를 생성하는 것으로 대체
+        const fullPrompt = `Based on the following description, create a new image: ${editPrompt}`;
 
-        } catch (error) {
-            console.error('❌ Base64 변환 실패:', error);
-            throw error;
-        }
+        return await this.generateImageLocal({
+            prompt: fullPrompt,
+            aspectRatio: '1:1'
+        });
     },
 
     // ========== Gemini API (대본 분석) ==========

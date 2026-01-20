@@ -33,6 +33,9 @@
             <div class="header-center">
             </div>
             <div class="header-right">
+                <button id="api-settings-btn" class="icon-btn" title="이미지 API 설정">
+                    ⚙️
+                </button>
                 <button id="project-menu-btn" class="icon-btn" title="프로젝트 관리">
                     📁
                 </button>
@@ -704,6 +707,84 @@
                         <p>• <kbd>Ctrl</kbd> + <kbd>S</kbd>: 프로젝트 저장</p>
                         <p>• <kbd>ESC</kbd>: 모달 닫기</p>
                     </section>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- API 설정 모달 -->
+    <div id="api-settings-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>⚙️ 이미지 생성 API 설정</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- API 타입 선택 탭 -->
+                <div class="api-type-tabs">
+                    <button class="api-tab active" data-type="ai_studio">
+                        <span class="tab-title">AI Studio</span>
+                        <span class="tab-desc">1일 100장 무료</span>
+                    </button>
+                    <button class="api-tab" data-type="vertex_ai">
+                        <span class="tab-title">Vertex AI</span>
+                        <span class="tab-desc">무료 $300 크레딧</span>
+                    </button>
+                </div>
+
+                <!-- API 설정 폼 -->
+                <div class="api-settings-form">
+                    <div class="form-group">
+                        <label for="api-key-input">
+                            API Key <span class="required">*</span>
+                        </label>
+                        <input
+                            type="password"
+                            id="api-key-input"
+                            class="input-text"
+                            placeholder="AIza..."
+                            autocomplete="off"
+                        >
+                        <p class="input-hint">
+                            <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">
+                                🔗 AI Studio에서 무료 API 키 발급받기
+                            </a>
+                        </p>
+                    </div>
+
+                    <div class="form-group" id="project-id-group" style="display: none;">
+                        <label for="project-id-input">
+                            Project ID <span class="required">*</span>
+                        </label>
+                        <input
+                            type="text"
+                            id="project-id-input"
+                            class="input-text"
+                            placeholder="my-project-id"
+                        >
+                        <p class="input-hint">
+                            Google Cloud Console에서 확인 가능
+                        </p>
+                    </div>
+
+                    <div class="form-actions">
+                        <button id="test-api-connection-btn" class="btn btn-secondary">
+                            🔌 연결 테스트
+                        </button>
+                        <button id="save-api-settings-btn" class="btn btn-primary">
+                            💾 저장
+                        </button>
+                    </div>
+
+                    <div id="api-test-result" class="api-test-result" style="display: none;"></div>
+                </div>
+
+                <!-- 현재 설정 상태 -->
+                <div class="current-api-status">
+                    <h4>현재 설정 상태</h4>
+                    <div id="api-status-display">
+                        <p class="status-not-configured">⚠️ API 키가 설정되지 않았습니다</p>
+                    </div>
                 </div>
             </div>
         </div>

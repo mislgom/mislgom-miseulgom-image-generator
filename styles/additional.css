@@ -1666,3 +1666,142 @@
 }
 
 
+
+/* ========== API 설정 모달 ========== */
+.api-type-tabs {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.api-tab {
+    flex: 1;
+    padding: 16px;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-secondary);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: center;
+}
+
+.api-tab:hover {
+    border-color: var(--accent-primary);
+    transform: translateY(-2px);
+}
+
+.api-tab.active {
+    border-color: var(--accent-primary);
+    background: rgba(99, 102, 241, 0.1);
+}
+
+.api-tab .tab-title {
+    display: block;
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: var(--text-primary);
+}
+
+.api-tab .tab-desc {
+    display: block;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.api-settings-form {
+    margin-bottom: 24px;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.form-group label .required {
+    color: #ef4444;
+}
+
+.input-hint {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.input-hint a {
+    color: var(--accent-primary);
+    text-decoration: none;
+}
+
+.input-hint a:hover {
+    text-decoration: underline;
+}
+
+.form-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+}
+
+.form-actions .btn {
+    flex: 1;
+}
+
+.api-test-result {
+    margin-top: 16px;
+    padding: 12px;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.api-test-result .success {
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.1);
+    padding: 8px;
+    border-radius: 4px;
+}
+
+.api-test-result .error {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.1);
+    padding: 8px;
+    border-radius: 4px;
+}
+
+.current-api-status {
+    padding: 16px;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+.current-api-status h4 {
+    margin-bottom: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.status-configured {
+    color: #10b981;
+    font-weight: 500;
+    margin-bottom: 8px;
+}
+
+.status-not-configured {
+    color: #f59e0b;
+    font-weight: 500;
+}
+
+.status-detail {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin: 4px 0;
+}
+
