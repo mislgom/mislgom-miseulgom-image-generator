@@ -18,6 +18,9 @@ const App = {
             // 모듈 초기화
             await this.initModules();
 
+            // 이미지 생성 API 설정 로드
+            API.loadImageApiSettings();
+
             // 이벤트 리스너 등록
             this.attachEventListeners();
 
@@ -112,6 +115,14 @@ const App = {
                     this.handleProjectAction(action);
                     projectMenu.classList.remove('active');
                 });
+            });
+        }
+
+        // API 설정 버튼
+        const apiSettingsBtn = document.getElementById('api-settings-btn');
+        if (apiSettingsBtn) {
+            apiSettingsBtn.addEventListener('click', () => {
+                this.openApiSettingsModal();
             });
         }
 
@@ -747,6 +758,159 @@ const App = {
             statusText.textContent = '❌ 연결 안됨';
             reconnectBtn.style.display = 'block';
             console.warn('⚠️ Stable Diffusion 연결 실패:', error.message);
+        }
+    },
+
+    // ========== API 설정 모달 ==========
+
+    /**
+     * API 설정 모달 열기
+     */
+    openApiSettingsModal() {
+        const modal = document.getElementById('api-settings-modal');
+        if (!modal) return;
+
+        // 현재 설정 로드
+        const settings = API.loadImageApiSettings();
+
+        // 탭 설정
+        const aiStudioTab = modal.querySelector('[data-type="ai_studio"]');
+        const vertexTab = modal.querySelector('[data-type="vertex_ai"]');
+        const apiKeyInput = document.getElementById('api-key-input');
+        const projectIdInput = document.getElementById('project-id-input');
+        const projectIdGroup = document.getElementById('project-id-group');
+
+        if (settings.apiType === 'vertex_ai') {
+            aiStudioTab.classList.remove('active');
+            vertexTab.classList.add('active');
+            projectIdGroup.style.display = 'block';
+        } else {
+            aiStudioTab.classList.add('active');
+            vertexTab.classList.remove('active');
+            projectIdGroup.style.display = 'none';
+        }
+
+        // 현재 값 설정
+        if (settings.apiKey) {
+            apiKeyInput.value = settings.apiKey;
+        }
+        if (settings.projectId) {
+            projectIdInput.value = settings.projectId;
+        }
+
+        // 상태 표시 업데이트
+        this.updateApiStatusDisplay();
+
+        // 탭 클릭 이벤트
+        aiStudioTab.addEventListener('click', () => {
+            aiStudioTab.classList.add('active');
+            vertexTab.classList.remove('active');
+            projectIdGroup.style.display = 'none';
+        });
+
+        vertexTab.addEventListener('click', () => {
+            aiStudioTab.classList.remove('active');
+            vertexTab.classList.add('active');
+            projectIdGroup.style.display = 'block';
+        });
+
+        // 저장 버튼
+        const saveBtn = document.getElementById('save-api-settings-btn');
+        saveBtn.onclick = () => {
+            const apiType = modal.querySelector('.api-tab.active').dataset.type;
+            const apiKey = apiKeyInput.value.trim();
+            const projectId = projectIdInput.value.trim();
+
+            if (!apiKey) {
+                UI.showToast('API 키를 입력해주세요', 'error');
+                return;
+            }
+
+            if (apiType === 'vertex_ai' && !projectId) {
+                UI.showToast('Vertex AI 사용 시 Project ID가 필요합니다', 'error');
+                return;
+            }
+
+            API.saveImageApiSettings(apiType, apiKey, projectId);
+            this.updateApiStatusDisplay();
+            UI.showToast('API 설정이 저장되었습니다', 'success');
+            modal.style.display = 'none';
+        };
+
+        // 연결 테스트 버튼
+        const testBtn = document.getElementById('test-api-connection-btn');
+        testBtn.onclick = async () => {
+            const apiType = modal.querySelector('.api-tab.active').dataset.type;
+            const apiKey = apiKeyInput.value.trim();
+            const projectId = projectIdInput.value.trim();
+
+            if (!apiKey) {
+                UI.showToast('API 키를 입력해주세요', 'error');
+                return;
+            }
+
+            testBtn.disabled = true;
+            testBtn.textContent = '🔄 테스트 중...';
+
+            try {
+                // 임시로 설정하고 테스트
+                API.IMAGE_API_TYPE = apiType;
+                API.IMAGE_API_KEY = apiKey;
+                API.IMAGE_PROJECT_ID = projectId;
+
+                const testResult = await API.generateImageLocal({
+                    prompt: 'A simple test image',
+                    aspectRatio: '1:1'
+                });
+
+                if (testResult) {
+                    UI.showToast('✅ API 연결 성공!', 'success');
+                    document.getElementById('api-test-result').style.display = 'block';
+                    document.getElementById('api-test-result').innerHTML = '<p class="success">✅ 연결 성공! API가 정상적으로 작동합니다.</p>';
+                }
+            } catch (error) {
+                UI.showToast('❌ API 연결 실패: ' + error.message, 'error');
+                document.getElementById('api-test-result').style.display = 'block';
+                document.getElementById('api-test-result').innerHTML = `<p class="error">❌ 연결 실패: ${error.message}</p>`;
+            } finally {
+                testBtn.disabled = false;
+                testBtn.textContent = '🔌 연결 테스트';
+            }
+        };
+
+        // 모달 닫기
+        const closeBtn = modal.querySelector('.modal-close');
+        closeBtn.onclick = () => {
+            modal.style.display = 'none';
+        };
+
+        modal.onclick = (e) => {
+            if (e.target === modal) {
+                modal.style.display = 'none';
+            }
+        };
+
+        modal.style.display = 'flex';
+    },
+
+    /**
+     * API 상태 표시 업데이트
+     */
+    updateApiStatusDisplay() {
+        const statusDisplay = document.getElementById('api-status-display');
+        if (!statusDisplay) return;
+
+        const settings = API.loadImageApiSettings();
+
+        if (settings.apiType && settings.apiKey) {
+            const apiName = settings.apiType === 'ai_studio' ? 'AI Studio' : 'Vertex AI';
+            statusDisplay.innerHTML = `
+                <p class="status-configured">✅ ${apiName} 연결됨</p>
+                <p class="status-detail">API 키: ${settings.apiKey.substring(0, 10)}...</p>
+                ${settings.projectId ? `<p class="status-detail">Project ID: ${settings.projectId}</p>` : ''}
+            `;
+        } else {
+            statusDisplay.innerHTML = '<p class="status-not-configured">⚠️ API 키가 설정되지 않았습니다</p>';
         }
     }
 };
