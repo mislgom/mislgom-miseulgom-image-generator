@@ -5,7 +5,6 @@
   "type": "module",
   "scripts": {
     "dev": "vercel dev",
-    "build": "vercel build",
     "init-admin": "node scripts/init-admin.js"
   },
   "dependencies": {
