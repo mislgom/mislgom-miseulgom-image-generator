@@ -1,18 +1,4 @@
 {
-  "version": 2,
-  "cleanUrls": true,
-  "trailingSlash": false,
-  "framework": null,
-  "buildCommand": null,
-  "devCommand": null,
-  "installCommand": "npm install",
-  "outputDirectory": ".",
-  "functions": {
-    "api/**/*.js": {
-      "runtime": "edge",
-      "maxDuration": 60
-    }
-  },
   "rewrites": [
     {
       "source": "/(.*)",
