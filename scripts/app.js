@@ -11,10 +11,18 @@ const App = {
 
     // 초기화
     async init() {
-        console.log('🐻 미슬곰 이미지 생성기 v1.0 시작');
+        console.log('🐻 미슬곰 이미지 생성기 v3.0 시작');
         console.log(`📅 ${new Date().toLocaleString()}`);
 
         try {
+            // 로그인 확인
+            if (!this.checkAuth()) {
+                return;
+            }
+
+            // 사용자 정보 표시
+            await this.displayUserInfo();
+
             // 모듈 초기화
             await this.initModules();
 
@@ -35,6 +43,94 @@ const App = {
         } catch (error) {
             console.error('❌ 초기화 오류:', error);
             UI.showToast('초기화 중 오류가 발생했습니다', 'error');
+        }
+    },
+
+    // 로그인 확인
+    checkAuth() {
+        const token = localStorage.getItem('auth_token');
+        const username = localStorage.getItem('username');
+
+        if (!token || !username) {
+            console.log('⚠️ 로그인 필요 - 로그인 페이지로 이동');
+            window.location.href = '/login.html';
+            return false;
+        }
+
+        console.log(`✅ 인증됨: ${username}`);
+        return true;
+    },
+
+    // 사용자 정보 표시
+    async displayUserInfo() {
+        const username = localStorage.getItem('username');
+        const role = localStorage.getItem('role');
+        const token = localStorage.getItem('auth_token');
+
+        // 헤더에 사용자 정보 추가
+        const header = document.querySelector('.app-header');
+        if (!header) return;
+
+        // 기존 사용자 정보 제거
+        const existingUserInfo = header.querySelector('.user-info');
+        if (existingUserInfo) {
+            existingUserInfo.remove();
+        }
+
+        // 사용자 정보 컨테이너 생성
+        const userInfoDiv = document.createElement('div');
+        userInfoDiv.className = 'user-info';
+        userInfoDiv.style.cssText = 'display: flex; align-items: center; gap: 16px; margin-left: auto;';
+
+        // 오늘 사용량 가져오기
+        let quotaText = '';
+        try {
+            const response = await fetch('/api/user/quota', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                quotaText = `<span style="color: var(--text-secondary); font-size: 14px;">오늘 ${data.used}/100</span>`;
+            }
+        } catch (error) {
+            console.warn('할당량 조회 실패:', error);
+        }
+
+        userInfoDiv.innerHTML = `
+            <span style="color: var(--text-primary); font-weight: 500;">${username}</span>
+            ${quotaText}
+            ${role === 'admin' ? '<a href="/admin.html" style="color: var(--primary-color); text-decoration: none; font-size: 14px;">👑 관리자</a>' : ''}
+            <button id="logout-btn" class="btn btn-secondary" style="padding: 6px 12px; font-size: 14px;">로그아웃</button>
+        `;
+
+        // 프로젝트명 입력 필드 앞에 삽입
+        const projectNameInput = header.querySelector('#project-name-input');
+        if (projectNameInput && projectNameInput.parentElement) {
+            projectNameInput.parentElement.insertAdjacentElement('afterend', userInfoDiv);
+        } else {
+            header.appendChild(userInfoDiv);
+        }
+
+        // 로그아웃 버튼 이벤트
+        const logoutBtn = document.getElementById('logout-btn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', () => {
+                this.logout();
+            });
+        }
+    },
+
+    // 로그아웃
+    logout() {
+        if (confirm('로그아웃 하시겠습니까?')) {
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('username');
+            localStorage.removeItem('role');
+            console.log('👋 로그아웃됨');
+            window.location.href = '/login.html';
         }
     },
 
@@ -766,12 +862,9 @@ const App = {
     /**
      * API 설정 모달 열기
      */
-    openApiSettingsModal() {
+    async openApiSettingsModal() {
         const modal = document.getElementById('api-settings-modal');
         if (!modal) return;
-
-        // 현재 설정 로드
-        const settings = API.loadImageApiSettings();
 
         // 탭 설정
         const aiStudioTab = modal.querySelector('[data-type="ai_studio"]');
@@ -780,26 +873,49 @@ const App = {
         const projectIdInput = document.getElementById('project-id-input');
         const projectIdGroup = document.getElementById('project-id-group');
 
-        if (settings.apiType === 'vertex_ai') {
-            aiStudioTab.classList.remove('active');
-            vertexTab.classList.add('active');
-            projectIdGroup.style.display = 'block';
-        } else {
-            aiStudioTab.classList.add('active');
-            vertexTab.classList.remove('active');
-            projectIdGroup.style.display = 'none';
-        }
+        // 기본값 설정
+        aiStudioTab.classList.add('active');
+        vertexTab.classList.remove('active');
+        projectIdGroup.style.display = 'none';
+        apiKeyInput.value = '';
+        projectIdInput.value = '';
 
-        // 현재 값 설정
-        if (settings.apiKey) {
-            apiKeyInput.value = settings.apiKey;
-        }
-        if (settings.projectId) {
-            projectIdInput.value = settings.projectId;
+        // 서버에서 현재 설정 로드
+        try {
+            const token = localStorage.getItem('auth_token');
+            if (token) {
+                const response = await fetch('/api/user/settings', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const settings = await response.json();
+
+                    if (settings.apiType === 'vertex_ai') {
+                        aiStudioTab.classList.remove('active');
+                        vertexTab.classList.add('active');
+                        projectIdGroup.style.display = 'block';
+                    }
+
+                    // 프로젝트 ID만 표시 (API 키는 서버에서 반환하지 않음)
+                    if (settings.projectId) {
+                        projectIdInput.value = settings.projectId;
+                    }
+
+                    // API 키는 보안상 플레이스홀더만 표시
+                    if (settings.hasApiKey) {
+                        apiKeyInput.placeholder = '기존 API 키가 설정되어 있습니다';
+                    }
+                }
+            }
+        } catch (error) {
+            console.warn('설정 로드 실패:', error);
         }
 
         // 상태 표시 업데이트
-        this.updateApiStatusDisplay();
+        await this.updateApiStatusDisplay();
 
         // 탭 클릭 이벤트
         aiStudioTab.addEventListener('click', () => {
@@ -816,7 +932,7 @@ const App = {
 
         // 저장 버튼
         const saveBtn = document.getElementById('save-api-settings-btn');
-        saveBtn.onclick = () => {
+        saveBtn.onclick = async () => {
             const apiType = modal.querySelector('.api-tab.active').dataset.type;
             const apiKey = apiKeyInput.value.trim();
             const projectId = projectIdInput.value.trim();
@@ -831,10 +947,20 @@ const App = {
                 return;
             }
 
-            API.saveImageApiSettings(apiType, apiKey, projectId);
-            this.updateApiStatusDisplay();
-            UI.showToast('API 설정이 저장되었습니다', 'success');
-            modal.style.display = 'none';
+            saveBtn.disabled = true;
+            saveBtn.textContent = '💾 저장 중...';
+
+            try {
+                await API.saveImageApiSettings(apiType, apiKey, projectId);
+                this.updateApiStatusDisplay();
+                UI.showToast('✅ API 설정이 저장되었습니다', 'success');
+                modal.style.display = 'none';
+            } catch (error) {
+                UI.showToast('❌ 저장 실패: ' + error.message, 'error');
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.textContent = '💾 저장';
+            }
         };
 
         // 연결 테스트 버튼
@@ -896,20 +1022,41 @@ const App = {
     /**
      * API 상태 표시 업데이트
      */
-    updateApiStatusDisplay() {
+    async updateApiStatusDisplay() {
         const statusDisplay = document.getElementById('api-status-display');
         if (!statusDisplay) return;
 
-        const settings = API.loadImageApiSettings();
+        try {
+            const token = localStorage.getItem('auth_token');
+            if (!token) {
+                statusDisplay.innerHTML = '<p class="status-not-configured">⚠️ 로그인이 필요합니다</p>';
+                return;
+            }
 
-        if (settings.apiType && settings.apiKey) {
-            const apiName = settings.apiType === 'ai_studio' ? 'AI Studio' : 'Vertex AI';
-            statusDisplay.innerHTML = `
-                <p class="status-configured">✅ ${apiName} 연결됨</p>
-                <p class="status-detail">API 키: ${settings.apiKey.substring(0, 10)}...</p>
-                ${settings.projectId ? `<p class="status-detail">Project ID: ${settings.projectId}</p>` : ''}
-            `;
-        } else {
+            const response = await fetch('/api/user/settings', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('설정 로드 실패');
+            }
+
+            const settings = await response.json();
+
+            if (settings.apiType && settings.hasApiKey) {
+                const apiName = settings.apiType === 'ai_studio' ? 'AI Studio' : 'Vertex AI';
+                statusDisplay.innerHTML = `
+                    <p class="status-configured">✅ ${apiName} 연결됨</p>
+                    <p class="status-detail">API 키가 설정되어 있습니다</p>
+                    ${settings.projectId ? `<p class="status-detail">Project ID: ${settings.projectId}</p>` : ''}
+                `;
+            } else {
+                statusDisplay.innerHTML = '<p class="status-not-configured">⚠️ API 키가 설정되지 않았습니다</p>';
+            }
+        } catch (error) {
+            console.error('API 상태 표시 업데이트 실패:', error);
             statusDisplay.innerHTML = '<p class="status-not-configured">⚠️ API 키가 설정되지 않았습니다</p>';
         }
     }

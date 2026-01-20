@@ -47,30 +47,35 @@ const API = {
     },
 
     /**
-     * 이미지 생성 API 설정 저장
+     * 이미지 생성 API 설정 저장 (서버에 저장)
      * @param {string} apiType - 'ai_studio' 또는 'vertex_ai'
      * @param {string} apiKey - API 키
      * @param {string} projectId - Vertex AI 프로젝트 ID (선택)
      */
-    saveImageApiSettings(apiType, apiKey, projectId = null) {
-        localStorage.setItem('image_api_type', apiType);
-        localStorage.setItem('image_api_key', apiKey);
+    async saveImageApiSettings(apiType, apiKey, projectId = null) {
+        const token = localStorage.getItem('auth_token');
 
-        if (projectId) {
-            localStorage.setItem('image_project_id', projectId);
-        } else {
-            localStorage.removeItem('image_project_id');
+        if (!token) {
+            throw new Error('로그인이 필요합니다');
         }
 
-        this.IMAGE_API_TYPE = apiType;
-        this.IMAGE_API_KEY = apiKey;
-        this.IMAGE_PROJECT_ID = projectId;
-
-        console.log('💾 이미지 API 설정 저장 완료:', {
-            type: apiType,
-            hasKey: !!apiKey,
-            hasProjectId: !!projectId
+        const response = await fetch('/api/user/settings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ apiType, apiKey, projectId })
         });
+
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.error || 'API 설정 저장 실패');
+        }
+
+        console.log('💾 API 설정 저장 완료 (서버)');
+
+        return await response.json();
     },
 
     /**
@@ -263,24 +268,23 @@ const API = {
     },
 
     /**
-     * Google Image Generation API로 이미지 생성
+     * Google Image Generation API로 이미지 생성 (JWT 토큰 방식)
      * @param {Object} params - 생성 파라미터
      * @param {string} params.prompt - 프롬프트
      * @param {string} params.aspectRatio - 비율 (기본: '1:1')
      * @returns {Promise<string>} - 이미지 Data URL
      */
     async generateImageLocal(params) {
-        // API 설정 로드
-        this.loadImageApiSettings();
-
-        if (!this.isImageApiConfigured()) {
-            throw new Error('이미지 생성 API 설정이 필요합니다. 설정 페이지에서 API 키를 등록해주세요.');
-        }
-
         const { prompt, aspectRatio = '1:1' } = params;
 
-        console.log('🎨 Google Image API 호출:', {
-            type: this.IMAGE_API_TYPE,
+        // JWT 토큰 가져오기
+        const token = localStorage.getItem('auth_token');
+
+        if (!token) {
+            throw new Error('로그인이 필요합니다');
+        }
+
+        console.log('🎨 이미지 생성 요청:', {
             prompt: prompt.substring(0, 50) + '...',
             aspectRatio
         });
@@ -289,130 +293,40 @@ const API = {
         return await this._retryWithBackoff(async () => {
             await this._waitBeforeRequest();
 
-            if (this.IMAGE_API_TYPE === 'ai_studio') {
-                return await this._generateWithAIStudio(prompt, aspectRatio);
-            } else if (this.IMAGE_API_TYPE === 'vertex_ai') {
-                return await this._generateWithVertexAI(prompt, aspectRatio);
-            } else {
-                throw new Error('알 수 없는 API 타입입니다.');
-            }
-        });
-    },
-
-    /**
-     * AI Studio API로 이미지 생성
-     */
-    async _generateWithAIStudio(prompt, aspectRatio) {
-        try {
-            const response = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${this.IMAGE_API_KEY}`,
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        contents: [{
-                            parts: [{
-                                text: prompt
-                            }]
-                        }],
-                        generationConfig: {
-                            responseModalities: ["image"],
-                            imageAspectRatio: aspectRatio
-                        }
-                    })
-                }
-            );
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                if (response.status === 401) {
-                    throw new Error('API 키가 올바르지 않습니다. 설정을 확인해주세요.');
-                } else if (response.status === 429) {
-                    throw new Error('RESOURCE_EXHAUSTED');
-                } else if (errorData.error?.message?.includes('content')) {
-                    throw new Error('이미지를 생성할 수 없는 내용입니다. 프롬프트를 수정해주세요.');
-                }
-                throw new Error(`AI Studio API 오류: ${response.status}`);
-            }
-
-            const data = await response.json();
-
-            // 이미지 데이터 추출
-            const imagePart = data.candidates?.[0]?.content?.parts?.find(part => part.inlineData);
-
-            if (!imagePart || !imagePart.inlineData) {
-                throw new Error('AI Studio: 이미지 생성 실패');
-            }
-
-            const imageDataUrl = `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
-            console.log('✅ AI Studio 이미지 생성 완료');
-
-            return imageDataUrl;
-
-        } catch (error) {
-            console.error('❌ AI Studio API 오류:', error);
-            throw error;
-        }
-    },
-
-    /**
-     * Vertex AI API로 이미지 생성
-     */
-    async _generateWithVertexAI(prompt, aspectRatio) {
-        try {
-            if (!this.IMAGE_PROJECT_ID) {
-                throw new Error('Vertex AI 사용 시 Project ID가 필요합니다.');
-            }
-
-            // Vertex AI Imagen 3 호출
-            const endpoint = `https://us-central1-aiplatform.googleapis.com/v1/projects/${this.IMAGE_PROJECT_ID}/locations/us-central1/publishers/google/models/imagen-3.0-generate-001:predict`;
-
-            const response = await fetch(endpoint, {
+            // Vercel 서버리스 함수 호출
+            const response = await fetch('/api/generate-image', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.IMAGE_API_KEY}`
+                    'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify({
-                    instances: [{
-                        prompt: prompt
-                    }],
-                    parameters: {
-                        sampleCount: 1,
-                        aspectRatio: aspectRatio
-                    }
-                })
+                body: JSON.stringify({ prompt, aspectRatio })
             });
 
+            if (response.status === 401) {
+                // 토큰 만료
+                localStorage.removeItem('auth_token');
+                window.location.href = '/login.html';
+                throw new Error('로그인이 만료되었습니다');
+            }
+
             if (!response.ok) {
-                if (response.status === 401 || response.status === 403) {
-                    throw new Error('Vertex AI 인증 실패. API 키 또는 권한을 확인해주세요.');
-                } else if (response.status === 429) {
+                const data = await response.json().catch(() => ({}));
+
+                if (response.status === 429) {
                     throw new Error('RESOURCE_EXHAUSTED');
                 }
-                throw new Error(`Vertex AI API 오류: ${response.status}`);
+
+                throw new Error(data.error || `API 오류: ${response.status}`);
             }
 
             const data = await response.json();
+            console.log('✅ 이미지 생성 완료');
 
-            const imageData = data.predictions?.[0]?.bytesBase64Encoded;
-
-            if (!imageData) {
-                throw new Error('Vertex AI: 이미지 생성 실패');
-            }
-
-            const imageDataUrl = `data:image/png;base64,${imageData}`;
-            console.log('✅ Vertex AI 이미지 생성 완료');
-
-            return imageDataUrl;
-
-        } catch (error) {
-            console.error('❌ Vertex AI API 오류:', error);
-            throw error;
-        }
+            return data.imageUrl;
+        });
     },
+
 
     /**
      * 이미지 수정 (img2img) - Google API는 지원하지 않음
