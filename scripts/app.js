@@ -68,7 +68,7 @@ const App = {
         const token = localStorage.getItem('auth_token');
 
         // 헤더에 사용자 정보 추가
-        const header = document.querySelector('.app-header');
+        const header = document.querySelector('.header');
         if (!header) return;
 
         // 기존 사용자 정보 제거
@@ -106,10 +106,10 @@ const App = {
             <button id="logout-btn" class="btn btn-secondary" style="padding: 6px 12px; font-size: 14px;">로그아웃</button>
         `;
 
-        // 프로젝트명 입력 필드 앞에 삽입
-        const projectNameInput = header.querySelector('#project-name-input');
-        if (projectNameInput && projectNameInput.parentElement) {
-            projectNameInput.parentElement.insertAdjacentElement('afterend', userInfoDiv);
+        // header-right 끝에 사용자 정보 추가
+        const headerRight = header.querySelector('.header-right');
+        if (headerRight) {
+            headerRight.appendChild(userInfoDiv);
         } else {
             header.appendChild(userInfoDiv);
         }
@@ -896,13 +896,13 @@ const App = {
 
         // 저장 버튼
         const saveBtn = document.getElementById('save-api-settings-btn');
-        const geminiApiKeyInput = document.getElementById('gemini-api-key-input');
+        // geminiApiKeyInput은 위에서 이미 선언됨 (line 745)
 
         saveBtn.onclick = async () => {
             const apiType = modal.querySelector('.api-tab.active').dataset.type;
             const apiKey = apiKeyInput.value.trim();
             const projectId = projectIdInput.value.trim();
-            const geminiApiKey = geminiApiKeyInput.value.trim();
+            const geminiApiKey = geminiApiKeyInput ? geminiApiKeyInput.value.trim() : '';
 
             if (!apiKey) {
                 UI.showToast('API 키를 입력해주세요', 'error');
