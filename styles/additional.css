@@ -1805,3 +1805,69 @@
     margin: 4px 0;
 }
 
+
+/* ============================================
+   API 선택 섹션 스타일
+   ============================================ */
+
+.api-selector {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.api-option {
+    display: block;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.api-option input[type="radio"] {
+    display: none;
+}
+
+.api-content {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    background: var(--bg-tertiary);
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+
+.api-option:hover .api-content {
+    border-color: var(--primary-color);
+    background: var(--bg-hover);
+}
+
+.api-option input[type="radio"]:checked + .api-content {
+    border-color: var(--primary-color);
+    background: rgba(102, 126, 234, 0.1);
+}
+
+.api-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.api-name {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text-primary);
+}
+
+.api-desc {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* 경고 색상 변수 */
+:root {
+    --warning-color: #f59e0b;
+}
+
+.dark-mode {
+    --warning-color: #fbbf24;
+}

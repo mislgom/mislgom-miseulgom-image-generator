@@ -33,8 +33,8 @@
             <div class="header-center">
             </div>
             <div class="header-right">
-                <button id="api-settings-btn" class="icon-btn" title="이미지 API 설정">
-                    ⚙️
+                <button id="api-settings-btn" class="btn btn-primary" style="padding: 8px 16px; font-size: 14px;" title="API 키 등록">
+                    🔑 API 등록
                 </button>
                 <button id="project-menu-btn" class="icon-btn" title="프로젝트 관리">
                     📁
@@ -164,6 +164,34 @@
                 </div>
             </div>
 
+            <!-- 이미지 생성 API 선택 -->
+            <div class="sidebar-section">
+                <h3 class="section-title">🌐 이미지 생성 API</h3>
+                <div class="api-selector">
+                    <label class="api-option">
+                        <input type="radio" name="image-api" value="ai_studio" id="api-ai-studio">
+                        <span class="api-content">
+                            <span class="api-info">
+                                <span class="api-name">🟢 AI Studio</span>
+                                <span class="api-desc">1일 100장 무료 (Gemini 2.0 Flash)</span>
+                            </span>
+                        </span>
+                    </label>
+                    <label class="api-option">
+                        <input type="radio" name="image-api" value="vertex_ai" id="api-vertex-ai">
+                        <span class="api-content">
+                            <span class="api-info">
+                                <span class="api-name">🔵 Vertex AI</span>
+                                <span class="api-desc">무료 $300 크레딧 (Imagen 3.0)</span>
+                            </span>
+                        </span>
+                    </label>
+                </div>
+                <small style="color: var(--warning-color); font-size: 12px; display: block; margin-top: 8px;">
+                    ⚠️ 이미지 생성 전 API를 먼저 선택하세요
+                </small>
+            </div>
+
             <!-- 이미지 스타일 -->
             <div class="sidebar-section">
                 <h3 class="section-title">🎨 이미지 스타일</h3>
@@ -258,43 +286,6 @@
                             </span>
                         </span>
                     </label>
-                </div>
-            </div>
-
-            <!-- 고급 설정 -->
-            <div class="sidebar-section">
-                <h3 class="section-title">⚙️ 고급 설정</h3>
-                <div class="setting-group">
-                    <div class="setting-item">
-                        <label for="gemini-api-key">🤖 Gemini API 키 (선택)</label>
-                        <input 
-                            type="password" 
-                            id="gemini-api-key" 
-                            class="text-input" 
-                            placeholder="AIzaSy... (입력하면 AI 대본 분석 가능)"
-                            style="font-size: 12px;"
-                        >
-                        <small style="color: var(--text-tertiary); font-size: 11px; display: block; margin-top: 4px;">
-                            💡 <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: var(--accent-primary);">무료로 발급받기</a> | 없으면 규칙 기반 분석 사용
-                        </small>
-                    </div>
-                    
-                    <!-- Stable Diffusion 연결 상태 -->
-                    <div class="setting-item" style="margin-top: 16px;">
-                        <label>🎨 Stable Diffusion 연결 상태</label>
-                        <div id="sd-connection-status" class="connection-status">
-                            <div class="status-indicator">
-                                <span class="status-dot" id="sd-status-dot"></span>
-                                <span class="status-text" id="sd-status-text">연결 확인 중...</span>
-                            </div>
-                            <button id="sd-reconnect-btn" class="reconnect-btn" style="display: none;">
-                                🔄 재연결
-                            </button>
-                        </div>
-                        <small style="color: var(--text-tertiary); font-size: 11px; display: block; margin-top: 4px;">
-                            💡 로컬에서 Stable Diffusion WebUI 실행 필요 (http://localhost:7860)
-                        </small>
-                    </div>
                 </div>
             </div>
 
@@ -764,6 +755,26 @@
                         >
                         <p class="input-hint">
                             Google Cloud Console에서 확인 가능
+                        </p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="gemini-api-key-input">
+                            🤖 Gemini API 키 (대본 분석용, 선택)
+                        </label>
+                        <input
+                            type="password"
+                            id="gemini-api-key-input"
+                            class="input-text"
+                            placeholder="AIza... (선택사항)"
+                            autocomplete="off"
+                        >
+                        <p class="input-hint">
+                            <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">
+                                🔗 AI Studio에서 무료 API 키 발급받기
+                            </a>
+                            <br>
+                            💡 대본 AI 분석용 (없으면 규칙 기반 분석 사용)
                         </p>
                     </div>
 

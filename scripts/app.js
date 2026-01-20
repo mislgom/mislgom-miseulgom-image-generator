@@ -812,49 +812,6 @@ const App = {
             this.isDemoMode = true;
         }
         
-        // Stable Diffusion 연결 확인
-        await this.checkSDConnection();
-    },
-    
-    // Stable Diffusion 연결 상태 확인
-    async checkSDConnection() {
-        const statusDot = document.getElementById('sd-status-dot');
-        const statusText = document.getElementById('sd-status-text');
-        const reconnectBtn = document.getElementById('sd-reconnect-btn');
-        
-        if (!statusDot || !statusText) return;
-        
-        // 확인 중 상태
-        statusDot.className = 'status-dot checking';
-        statusText.className = 'status-text checking';
-        statusText.textContent = '연결 확인 중...';
-        reconnectBtn.style.display = 'none';
-        
-        try {
-            // Stable Diffusion WebUI API 확인
-            const response = await fetch('http://127.0.0.1:7860/sdapi/v1/options', {
-                method: 'GET',
-                mode: 'cors'
-            });
-            
-            if (response.ok) {
-                // 연결 성공
-                statusDot.className = 'status-dot connected';
-                statusText.className = 'status-text connected';
-                statusText.textContent = '✅ 연결됨 (localhost:7860)';
-                reconnectBtn.style.display = 'none';
-                console.log('✅ Stable Diffusion 연결됨');
-            } else {
-                throw new Error('SD WebUI 응답 없음');
-            }
-        } catch (error) {
-            // 연결 실패
-            statusDot.className = 'status-dot disconnected';
-            statusText.className = 'status-text disconnected';
-            statusText.textContent = '❌ 연결 안됨';
-            reconnectBtn.style.display = 'block';
-            console.warn('⚠️ Stable Diffusion 연결 실패:', error.message);
-        }
     },
 
     // ========== API 설정 모달 ==========
@@ -879,6 +836,13 @@ const App = {
         projectIdGroup.style.display = 'none';
         apiKeyInput.value = '';
         projectIdInput.value = '';
+
+        // Gemini API 키 입력 필드 (대본 분석용)
+        const geminiApiKeyInput = document.getElementById('gemini-api-key-input');
+        const savedGeminiKey = localStorage.getItem('gemini_api_key');
+        if (geminiApiKeyInput) {
+            geminiApiKeyInput.value = savedGeminiKey || '';
+        }
 
         // 서버에서 현재 설정 로드
         try {
@@ -932,10 +896,13 @@ const App = {
 
         // 저장 버튼
         const saveBtn = document.getElementById('save-api-settings-btn');
+        const geminiApiKeyInput = document.getElementById('gemini-api-key-input');
+
         saveBtn.onclick = async () => {
             const apiType = modal.querySelector('.api-tab.active').dataset.type;
             const apiKey = apiKeyInput.value.trim();
             const projectId = projectIdInput.value.trim();
+            const geminiApiKey = geminiApiKeyInput.value.trim();
 
             if (!apiKey) {
                 UI.showToast('API 키를 입력해주세요', 'error');
@@ -951,7 +918,19 @@ const App = {
             saveBtn.textContent = '💾 저장 중...';
 
             try {
+                // 이미지 생성 API 설정 저장
                 await API.saveImageApiSettings(apiType, apiKey, projectId);
+
+                // Gemini API 키 저장 (대본 분석용)
+                if (geminiApiKey) {
+                    localStorage.setItem('gemini_api_key', geminiApiKey);
+                    API.GEMINI_API_KEY = geminiApiKey;
+                    console.log('✅ Gemini API 키 저장됨');
+                } else {
+                    localStorage.removeItem('gemini_api_key');
+                    API.GEMINI_API_KEY = '';
+                }
+
                 this.updateApiStatusDisplay();
                 UI.showToast('✅ API 설정이 저장되었습니다', 'success');
                 modal.style.display = 'none';
