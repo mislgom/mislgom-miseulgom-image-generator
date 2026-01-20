@@ -711,12 +711,7 @@
                 <button class="modal-close">&times;</button>
             </div>
             <div class="modal-body">
-                <!-- 이미지 생성 API 섹션 -->
-                <h3 style="margin-bottom: 16px; color: var(--text-primary); font-size: 16px; font-weight: 600;">
-                    🎨 이미지 생성 API
-                </h3>
-
-                <!-- API 타입 선택 탭 -->
+                <!-- API 타입 선택 탭 (3개) -->
                 <div class="api-type-tabs">
                     <button class="api-tab active" data-type="ai_studio">
                         <span class="tab-title">AI Studio</span>
@@ -726,17 +721,25 @@
                         <span class="tab-title">Vertex AI</span>
                         <span class="tab-desc">무료 $300 크레딧</span>
                     </button>
+                    <button class="api-tab" data-type="script_analysis">
+                        <span class="tab-title">대본 분석 API</span>
+                        <span class="tab-desc">Gemini API</span>
+                    </button>
                 </div>
 
-                <!-- API 설정 폼 -->
-                <div class="api-settings-form">
+                <!-- AI Studio 설정 폼 -->
+                <div class="api-settings-form" id="ai-studio-form">
+                    <h3 style="margin-bottom: 16px; color: var(--text-primary); font-size: 16px; font-weight: 600;">
+                        🟢 AI Studio (이미지 생성)
+                    </h3>
+
                     <div class="form-group">
-                        <label for="api-key-input">
+                        <label for="ai-studio-api-key">
                             API Key <span class="required">*</span>
                         </label>
                         <input
                             type="password"
-                            id="api-key-input"
+                            id="ai-studio-api-key"
                             class="input-text"
                             placeholder="AIza..."
                             autocomplete="off"
@@ -748,13 +751,44 @@
                         </p>
                     </div>
 
-                    <div class="form-group" id="project-id-group" style="display: none;">
-                        <label for="project-id-input">
+                    <div class="form-actions">
+                        <button id="test-ai-studio-btn" class="btn btn-secondary">
+                            🔌 연결 테스트
+                        </button>
+                        <button id="save-ai-studio-btn" class="btn btn-primary">
+                            💾 저장
+                        </button>
+                    </div>
+
+                    <div id="ai-studio-test-result" class="api-test-result" style="display: none;"></div>
+                </div>
+
+                <!-- Vertex AI 설정 폼 -->
+                <div class="api-settings-form" id="vertex-ai-form" style="display: none;">
+                    <h3 style="margin-bottom: 16px; color: var(--text-primary); font-size: 16px; font-weight: 600;">
+                        🔵 Vertex AI (이미지 생성)
+                    </h3>
+
+                    <div class="form-group">
+                        <label for="vertex-ai-api-key">
+                            API Key <span class="required">*</span>
+                        </label>
+                        <input
+                            type="password"
+                            id="vertex-ai-api-key"
+                            class="input-text"
+                            placeholder="AIza..."
+                            autocomplete="off"
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label for="vertex-ai-project-id">
                             Project ID <span class="required">*</span>
                         </label>
                         <input
                             type="text"
-                            id="project-id-input"
+                            id="vertex-ai-project-id"
                             class="input-text"
                             placeholder="my-project-id"
                         >
@@ -763,12 +797,22 @@
                         </p>
                     </div>
 
-                    <!-- 구분선 -->
-                    <hr style="margin: 24px 0; border: none; border-top: 1px solid var(--border-color);">
+                    <div class="form-actions">
+                        <button id="test-vertex-ai-btn" class="btn btn-secondary">
+                            🔌 연결 테스트
+                        </button>
+                        <button id="save-vertex-ai-btn" class="btn btn-primary">
+                            💾 저장
+                        </button>
+                    </div>
 
-                    <!-- 대본 분석 API 섹션 -->
+                    <div id="vertex-ai-test-result" class="api-test-result" style="display: none;"></div>
+                </div>
+
+                <!-- 대본 분석 API 설정 폼 -->
+                <div class="api-settings-form" id="script-analysis-form" style="display: none;">
                     <h3 style="margin-bottom: 16px; color: var(--text-primary); font-size: 16px; font-weight: 600;">
-                        📝 대본 분석 API
+                        📝 대본 분석 API (Gemini)
                     </h3>
 
                     <div class="form-group">
@@ -792,15 +836,15 @@
                     </div>
 
                     <div class="form-actions">
-                        <button id="test-api-connection-btn" class="btn btn-secondary">
+                        <button id="test-gemini-btn" class="btn btn-secondary">
                             🔌 연결 테스트
                         </button>
-                        <button id="save-api-settings-btn" class="btn btn-primary">
+                        <button id="save-gemini-btn" class="btn btn-primary">
                             💾 저장
                         </button>
                     </div>
 
-                    <div id="api-test-result" class="api-test-result" style="display: none;"></div>
+                    <div id="gemini-test-result" class="api-test-result" style="display: none;"></div>
                 </div>
 
                 <!-- 현재 설정 상태 -->
