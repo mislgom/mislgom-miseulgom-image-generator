@@ -7,10 +7,6 @@ import { saveUserApiSettings, getUserApiSettings } from '../../lib/db.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
 
-export const config = {
-    runtime: 'edge',
-};
-
 export default async function handler(request) {
     const headers = {
         'Access-Control-Allow-Origin': '*',
