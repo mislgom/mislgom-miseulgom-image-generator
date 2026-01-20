@@ -1,10 +1,53 @@
 {
+  "version": 2,
   "cleanUrls": true,
   "trailingSlash": false,
-  "rewrites": [
+  "framework": null,
+  "buildCommand": null,
+  "devCommand": null,
+  "installCommand": "npm install",
+  "outputDirectory": ".",
+  "functions": {
+    "api/**/*.js": {
+      "runtime": "edge",
+      "maxDuration": 60
+    }
+  },
+  "routes": [
     {
-      "source": "/sdapi/:path*",
-      "destination": "http://127.0.0.1:7860/sdapi/:path*"
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
+    },
+    {
+      "src": "/(.*\\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|html))",
+      "dest": "/$1"
+    },
+    {
+      "src": "/",
+      "dest": "/index.html"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/$1"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, POST, PUT, DELETE, OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type, Authorization"
+        }
+      ]
     }
   ]
 }

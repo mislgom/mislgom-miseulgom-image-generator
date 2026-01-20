@@ -1,0 +1,22 @@
+{
+  "name": "miseulgom-image-generator",
+  "version": "3.0.0",
+  "description": "미슬곰 이미지 자동 생성기 - AI 스토리보드 생성",
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "vercel build",
+    "init-admin": "node scripts/init-admin.js"
+  },
+  "dependencies": {
+    "@vercel/kv": "^1.0.1",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "vercel": "^33.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
