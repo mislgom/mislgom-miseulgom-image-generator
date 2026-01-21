@@ -225,8 +225,8 @@ const API = {
      * @returns {Object} - { min, max } 딜레이 범위 (밀리초)
      */
     getDelayForApi() {
-        // Vertex AI: 관대한 Rate Limit (1-2초)
-        return { min: 1000, max: 2000 };
+        // Vertex AI: Rate Limit 보호 (8-12초)
+        return { min: 8000, max: 12000 };
     },
 
     /**
@@ -323,6 +323,18 @@ const API = {
                 const data = await response.json().catch(() => ({}));
 
                 if (response.status === 429) {
+                    // 429 에러 상세 로깅
+                    console.error('❌ 429 Rate Limit 에러 발생:', {
+                        status: response.status,
+                        statusText: response.statusText,
+                        headers: {
+                            'retry-after': response.headers.get('retry-after'),
+                            'x-ratelimit-limit': response.headers.get('x-ratelimit-limit'),
+                            'x-ratelimit-remaining': response.headers.get('x-ratelimit-remaining'),
+                            'x-ratelimit-reset': response.headers.get('x-ratelimit-reset')
+                        },
+                        errorBody: data
+                    });
                     throw new Error('RESOURCE_EXHAUSTED');
                 }
 

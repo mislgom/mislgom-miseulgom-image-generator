@@ -334,33 +334,16 @@ const StoryboardManager = {
 
     // 장면 이미지 생성
     async generateSceneImage(prompt) {
-        // 현재 비율에 맞는 해상도 가져오기
-        const resolution = CharacterManager.getResolutionFromAspectRatio(CharacterManager.state.currentAspectRatio);
-        
-        // 로컬 Stable Diffusion WebUI 사용
         try {
             const imageUrl = await API.generateImageLocal({
                 prompt: prompt.en,
                 negative_prompt: prompt.negative,
-                style: CharacterManager.state.currentStyle,  // ← 스타일 전달
-                width: resolution.width,
-                height: resolution.height,
-                steps: 25,  // 🔧 FLUX 최적화
-                cfg_scale: 3.5  // 🔧 FLUX 권장 CFG
+                aspectRatio: CharacterManager.state.currentAspectRatio  // ✅ aspectRatio 전달
             });
             return imageUrl;
         } catch (error) {
             console.error('❌ 로컬 장면 이미지 생성 실패:', error);
-            
-            // 폴백: 데모 이미지
-            const demoImages = [
-                'https://images.unsplash.com/photo-1551847812-36c8db2e6936?w=800&h=450&fit=crop',
-                'https://images.unsplash.com/photo-1547891654-e66ed7ebb968?w=800&h=450&fit=crop',
-                'https://images.unsplash.com/photo-1551847812-9dcf1acbf8b4?w=800&h=450&fit=crop'
-            ];
-
-            await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 1200));
-            return demoImages[Math.floor(Math.random() * demoImages.length)];
+            throw error;
         }
     },
 

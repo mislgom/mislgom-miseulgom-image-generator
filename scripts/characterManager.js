@@ -102,10 +102,17 @@ const CharacterManager = {
             // 각 등장인물 이미지 생성
             for (let i = 0; i < this.state.characters.length; i++) {
                 const character = this.state.characters[i];
-                
+
+                // ✅ 현재 선택된 스타일과 인종을 캐릭터에 적용
+                character.ethnicity = this.state.currentEthnicity;
+                character.style = this.state.currentStyle;
+
                 try {
                     // 프롬프트 생성
                     const prompt = await this.createCharacterPrompt(character);
+
+                    // ✅ 디버깅: 스타일이 prompt.en에 실제로 들어가는지 확인
+                    console.log(`🎨 [${character.name}] 스타일: ${character.style}, 인종: ${character.ethnicity}, 프롬프트:`, prompt.en.substring(0, 200));
                     
                     // 이미지 생성 (API 호출)
                     const imageUrl = await this.generateCharacterImage(prompt);
@@ -153,7 +160,11 @@ const CharacterManager = {
 
     // 등장인물 프롬프트 생성 - v3.0 (era 동적 처리)
     async createCharacterPrompt(character) {
-        const { name, nameEn, description, descriptionKo, descriptionEn, ethnicity, style, era } = character;
+        const { name, nameEn, description, descriptionKo, descriptionEn, era } = character;
+
+        // ✅ 현재 상태에서 스타일과 인종 가져오기 (캐릭터에 없으면 현재 상태 사용)
+        const ethnicity = character.ethnicity || this.state.currentEthnicity;
+        const style = character.style || this.state.currentStyle;
 
         // 🆕 한글/영문 설명 우선 사용 (없으면 기존 description 사용)
         const koDesc = descriptionKo || description;
@@ -265,25 +276,16 @@ const CharacterManager = {
 
     // 등장인물 이미지 생성 (API 호출)
     async generateCharacterImage(prompt) {
-        // 현재 비율에 맞는 해상도 가져오기
-        const resolution = this.getResolutionFromAspectRatio(this.state.currentAspectRatio);
-        
-        // 로컬 Stable Diffusion WebUI 사용
         try {
             const imageUrl = await API.generateImageLocal({
                 prompt: prompt.en,
                 negative_prompt: prompt.negative,
-                style: this.state.currentStyle,  // ← 스타일 전달
-                width: resolution.width,
-                height: resolution.height,
-                steps: 25,  // 🔧 FLUX 최적화
-                cfg_scale: 3.5,  // 🔧 FLUX 권장 CFG
-                enableADetailer: false  // 🔧 ADetailer 비활성화 (422 에러 방지)
+                aspectRatio: this.state.currentAspectRatio  // ✅ aspectRatio 전달
             });
             return imageUrl;
         } catch (error) {
             console.error('❌ 로컬 이미지 생성 실패:', error);
-            throw error;  // 🔧 에러를 상위로 전달 (데모 이미지 사용 방지)
+            throw error;
         }
     },
 
