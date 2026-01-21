@@ -7,33 +7,25 @@ import { checkQuota } from '../../lib/db.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
 
-export default async function handler(request) {
-    const headers = {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-        'Content-Type': 'application/json',
-    };
+export default async function handler(req, res) {
+    // CORS 헤더
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-    if (request.method === 'OPTIONS') {
-        return new Response(null, { status: 200, headers });
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
     }
 
-    if (request.method !== 'GET') {
-        return new Response(
-            JSON.stringify({ error: 'Method not allowed' }),
-            { status: 405, headers }
-        );
+    if (req.method !== 'GET') {
+        return res.status(405).json({ error: 'Method not allowed' });
     }
 
     // JWT 토큰 검증
-    const authHeader = request.headers.get('Authorization');
+    const authHeader = req.headers['authorization'] || req.headers['Authorization'];
 
     if (!authHeader?.startsWith('Bearer ')) {
-        return new Response(
-            JSON.stringify({ error: '로그인이 필요합니다' }),
-            { status: 401, headers }
-        );
+        return res.status(401).json({ error: '로그인이 필요합니다' });
     }
 
     const token = authHeader.substring(7);
@@ -42,31 +34,21 @@ export default async function handler(request) {
     try {
         decoded = jwt.verify(token, JWT_SECRET);
     } catch (error) {
-        return new Response(
-            JSON.stringify({ error: '인증이 만료되었습니다' }),
-            { status: 401, headers }
-        );
+        return res.status(401).json({ error: '인증이 만료되었습니다' });
     }
 
     try {
         const used = await checkQuota(decoded.username);
 
-        return new Response(
-            JSON.stringify({
-                username: decoded.username,
-                used: used,
-                limit: 100,
-                remaining: Math.max(0, 100 - used)
-            }),
-            { status: 200, headers }
-        );
+        return res.status(200).json({
+            username: decoded.username,
+            used: used,
+            limit: 100,
+            remaining: Math.max(0, 100 - used)
+        });
 
     } catch (error) {
         console.error('Quota API error:', error);
-
-        return new Response(
-            JSON.stringify({ error: error.message || 'Server error' }),
-            { status: 500, headers }
-        );
+        return res.status(500).json({ error: error.message || 'Server error' });
     }
 }
