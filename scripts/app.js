@@ -965,6 +965,9 @@ const App = {
                 }
                 UI.showToast('✅ Gemini API 키가 제거되었습니다', 'info');
             }
+
+            // 상태 표시 업데이트
+            this.updateGeminiApiStatus();
         };
     },
 
@@ -1055,10 +1058,18 @@ const App = {
     },
 
     /**
-     * API 상태 표시 업데이트
+     * API 상태 표시 업데이트 (Vertex AI + Gemini API)
      */
     async updateApiStatusDisplay() {
-        const statusDisplay = document.getElementById('api-status-display');
+        await this.updateVertexAiStatus();
+        this.updateGeminiApiStatus();
+    },
+
+    /**
+     * Vertex AI 상태 표시 업데이트
+     */
+    async updateVertexAiStatus() {
+        const statusDisplay = document.getElementById('vertex-ai-status-display');
         if (!statusDisplay) return;
 
         try {
@@ -1083,15 +1094,37 @@ const App = {
             if (settings.apiType && settings.hasApiKey) {
                 statusDisplay.innerHTML = `
                     <p class="status-configured">✅ Vertex AI 연결됨</p>
-                    <p class="status-detail">API 키가 설정되어 있습니다</p>
+                    <p class="status-detail">이미지 생성용 API</p>
                     ${settings.projectId ? `<p class="status-detail">Project ID: ${settings.projectId}</p>` : ''}
                 `;
             } else {
-                statusDisplay.innerHTML = '<p class="status-not-configured">⚠️ API 키가 설정되지 않았습니다</p>';
+                statusDisplay.innerHTML = '<p class="status-not-configured">⚠️ Vertex AI 설정 필요</p>';
             }
         } catch (error) {
-            console.error('API 상태 표시 업데이트 실패:', error);
-            statusDisplay.innerHTML = '<p class="status-not-configured">⚠️ API 키가 설정되지 않았습니다</p>';
+            console.error('Vertex AI 상태 표시 업데이트 실패:', error);
+            statusDisplay.innerHTML = '<p class="status-not-configured">⚠️ Vertex AI 설정 필요</p>';
+        }
+    },
+
+    /**
+     * Gemini API 상태 표시 업데이트
+     */
+    updateGeminiApiStatus() {
+        const statusDisplay = document.getElementById('gemini-api-status-display');
+        if (!statusDisplay) return;
+
+        const geminiApiKey = localStorage.getItem('gemini_api_key');
+
+        if (geminiApiKey && geminiApiKey.trim()) {
+            statusDisplay.innerHTML = `
+                <p class="status-configured">✅ AI Studio 연결됨</p>
+                <p class="status-detail">대본 분석용 Gemini API</p>
+            `;
+        } else {
+            statusDisplay.innerHTML = `
+                <p class="status-not-configured">⚠️ Gemini API 키 미설정</p>
+                <p class="status-detail">규칙 기반 분석 사용 중</p>
+            `;
         }
     }
 };
