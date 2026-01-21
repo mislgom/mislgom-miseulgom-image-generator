@@ -53,17 +53,10 @@ export default async function handler(request) {
         // 사용자 API 설정 가져오기
         const apiSettings = await getUserApiSettings(decoded.username);
 
-        // AI Studio는 API Key 필수, Vertex AI는 Service Account 방식이므로 검증 생략
-        if (apiSettings.apiType === 'ai_studio' && !apiSettings.apiKey) {
+        // Vertex AI Project ID 필수 검증
+        if (!apiSettings.projectId) {
             return new Response(
-                JSON.stringify({ error: 'API 키를 먼저 설정해주세요. 설정 메뉴에서 Google API 키를 등록하세요.' }),
-                { status: 400, headers }
-            );
-        }
-
-        if (apiSettings.apiType === 'vertex_ai' && !apiSettings.projectId) {
-            return new Response(
-                JSON.stringify({ error: 'Vertex AI Project ID를 먼저 설정해주세요.' }),
+                JSON.stringify({ error: 'Vertex AI Project ID를 먼저 설정해주세요. API 등록 메뉴에서 설정하세요.' }),
                 { status: 400, headers }
             );
         }
@@ -90,23 +83,12 @@ export default async function handler(request) {
 
         console.log(`🎨 이미지 생성 요청: ${decoded.username} (${quota + 1}/100)`);
 
-        let imageUrl;
-
-        if (apiSettings.apiType === 'vertex_ai') {
-            // Vertex AI는 Service Account 방식
-            imageUrl = await generateWithVertexAI(
-                prompt,
-                aspectRatio,
-                apiSettings.projectId
-            );
-        } else {
-            // AI Studio는 API Key 방식
-            imageUrl = await generateWithAIStudio(
-                prompt,
-                aspectRatio,
-                apiSettings.apiKey
-            );
-        }
+        // Vertex AI로 이미지 생성 (Service Account 방식)
+        const imageUrl = await generateWithVertexAI(
+            prompt,
+            aspectRatio,
+            apiSettings.projectId
+        );
 
         // 할당량 증가
         await incrementQuota(decoded.username);
@@ -136,45 +118,6 @@ export default async function handler(request) {
             { status: 500, headers }
         );
     }
-}
-
-// AI Studio API 호출 (최신 안정화 이미지 모델)
-async function generateWithAIStudio(prompt, aspectRatio, apiKey) {
-    const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`,
-        {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: {
-                    responseModalities: ['image'],
-                    imageAspectRatio: aspectRatio
-                }
-            })
-        }
-    );
-
-    if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        if (response.status === 401) {
-            throw new Error('API 키가 올바르지 않습니다. 설정에서 확인해주세요.');
-        } else if (response.status === 429) {
-            throw new Error('429 RESOURCE_EXHAUSTED');
-        } else if (errorData.error?.message?.includes('content')) {
-            throw new Error('이미지를 생성할 수 없는 내용입니다. 프롬프트를 수정해주세요.');
-        }
-        throw new Error(`AI Studio API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const imagePart = data.candidates?.[0]?.content?.parts?.find(part => part.inlineData);
-
-    if (!imagePart?.inlineData) {
-        throw new Error('No image generated');
-    }
-
-    return `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
 }
 
 // Vertex AI API 호출 (Service Account JSON 키 인증 방식)
