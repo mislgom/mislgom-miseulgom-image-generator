@@ -1058,8 +1058,8 @@ const App = {
             resultDiv.style.display = 'none';
 
             try {
-                // 실제 API 호출 테스트 (간단한 프롬프트)
-                const testUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`;
+                // API 연결 테스트 (텍스트 모델 사용 - 할당량 절약)
+                const testUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
                 const response = await fetch(testUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
