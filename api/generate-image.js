@@ -8,33 +8,25 @@ import { getUserApiSettings, checkQuota, incrementQuota } from '../lib/db.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
 
-export default async function handler(request) {
-    const headers = {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-        'Content-Type': 'application/json',
-    };
+export default async function handler(req, res) {
+    // CORS 헤더
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-    if (request.method === 'OPTIONS') {
-        return new Response(null, { status: 200, headers });
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
     }
 
-    if (request.method !== 'POST') {
-        return new Response(
-            JSON.stringify({ error: 'Method not allowed' }),
-            { status: 405, headers }
-        );
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Method not allowed' });
     }
 
     // JWT 토큰 검증
-    const authHeader = request.headers.get('Authorization');
+    const authHeader = req.headers['authorization'] || req.headers['Authorization'];
 
     if (!authHeader?.startsWith('Bearer ')) {
-        return new Response(
-            JSON.stringify({ error: '로그인이 필요합니다' }),
-            { status: 401, headers }
-        );
+        return res.status(401).json({ error: '로그인이 필요합니다' });
     }
 
     const token = authHeader.substring(7);
@@ -43,10 +35,7 @@ export default async function handler(request) {
     try {
         decoded = jwt.verify(token, JWT_SECRET);
     } catch (error) {
-        return new Response(
-            JSON.stringify({ error: '인증이 만료되었습니다. 다시 로그인해주세요' }),
-            { status: 401, headers }
-        );
+        return res.status(401).json({ error: '인증이 만료되었습니다. 다시 로그인해주세요' });
     }
 
     try {
@@ -55,37 +44,25 @@ export default async function handler(request) {
 
         // AI Studio는 API Key 필수, Vertex AI는 Service Account 방식이므로 검증 생략
         if (apiSettings.apiType === 'ai_studio' && !apiSettings.apiKey) {
-            return new Response(
-                JSON.stringify({ error: 'API 키를 먼저 설정해주세요. 설정 메뉴에서 Google API 키를 등록하세요.' }),
-                { status: 400, headers }
-            );
+            return res.status(400).json({ error: 'API 키를 먼저 설정해주세요. 설정 메뉴에서 Google API 키를 등록하세요.' });
         }
 
         if (apiSettings.apiType === 'vertex_ai' && !apiSettings.projectId) {
-            return new Response(
-                JSON.stringify({ error: 'Vertex AI Project ID를 먼저 설정해주세요.' }),
-                { status: 400, headers }
-            );
+            return res.status(400).json({ error: 'Vertex AI Project ID를 먼저 설정해주세요.' });
         }
 
         // 일일 할당량 확인 (사용자별 100장)
         const quota = await checkQuota(decoded.username);
 
         if (quota >= 100) {
-            return new Response(
-                JSON.stringify({ error: '오늘 사용 가능한 이미지 생성 횟수(100장)를 모두 사용했습니다' }),
-                { status: 429, headers }
-            );
+            return res.status(429).json({ error: '오늘 사용 가능한 이미지 생성 횟수(100장)를 모두 사용했습니다' });
         }
 
         // 이미지 생성 요청
-        const { prompt, aspectRatio = '1:1' } = await request.json();
+        const { prompt, aspectRatio = '1:1' } = req.body;
 
         if (!prompt) {
-            return new Response(
-                JSON.stringify({ error: 'prompt is required' }),
-                { status: 400, headers }
-            );
+            return res.status(400).json({ error: 'prompt is required' });
         }
 
         console.log(`🎨 이미지 생성 요청: ${decoded.username} (${quota + 1}/100)`);
@@ -111,30 +88,21 @@ export default async function handler(request) {
         // 할당량 증가
         await incrementQuota(decoded.username);
 
-        return new Response(
-            JSON.stringify({
-                imageUrl,
-                remainingQuota: 99 - quota,
-                message: '이미지 생성 완료'
-            }),
-            { status: 200, headers }
-        );
+        return res.status(200).json({
+            imageUrl,
+            remainingQuota: 99 - quota,
+            message: '이미지 생성 완료'
+        });
 
     } catch (error) {
         console.error('Image generation error:', error);
 
         // 429 에러 (Rate Limit)
         if (error.message.includes('429') || error.message.includes('RESOURCE_EXHAUSTED')) {
-            return new Response(
-                JSON.stringify({ error: 'Google API 일일 사용량을 초과했습니다. 내일 다시 시도해주세요.' }),
-                { status: 429, headers }
-            );
+            return res.status(429).json({ error: 'Google API 일일 사용량을 초과했습니다. 내일 다시 시도해주세요.' });
         }
 
-        return new Response(
-            JSON.stringify({ error: error.message || 'Image generation failed' }),
-            { status: 500, headers }
-        );
+        return res.status(500).json({ error: error.message || 'Image generation failed' });
     }
 }
 
