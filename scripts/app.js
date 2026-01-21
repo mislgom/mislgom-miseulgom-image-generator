@@ -944,9 +944,7 @@ const App = {
                     }
 
                     if (settings.apiType === 'vertex_ai') {
-                        if (settings.hasApiKey) {
-                            document.getElementById('vertex-ai-api-key').placeholder = '기존 API 키가 설정되어 있습니다';
-                        }
+                        // Vertex AI는 Service Account 방식이므로 Project ID만 표시
                         if (settings.projectId) {
                             document.getElementById('vertex-ai-project-id').value = settings.projectId;
                         }
@@ -991,17 +989,11 @@ const App = {
         };
     },
 
-    // Vertex AI 저장 버튼
+    // Vertex AI 저장 버튼 (Service Account 방식)
     setupVertexAiSaveButton() {
         const saveBtn = document.getElementById('save-vertex-ai-btn');
         saveBtn.onclick = async () => {
-            const apiKey = document.getElementById('vertex-ai-api-key').value.trim();
             const projectId = document.getElementById('vertex-ai-project-id').value.trim();
-
-            if (!apiKey) {
-                UI.showToast('API 키를 입력해주세요', 'error');
-                return;
-            }
 
             if (!projectId) {
                 UI.showToast('Project ID를 입력해주세요', 'error');
@@ -1012,9 +1004,10 @@ const App = {
             saveBtn.textContent = '💾 저장 중...';
 
             try {
-                await API.saveImageApiSettings('vertex_ai', apiKey, projectId);
+                // Service Account 방식에서는 apiKey 대신 'service_account' 플래그 전달
+                await API.saveImageApiSettings('vertex_ai', 'service_account', projectId);
                 await this.updateApiStatusDisplay();
-                UI.showToast('✅ Vertex AI API 설정이 저장되었습니다', 'success');
+                UI.showToast('✅ Vertex AI 설정이 저장되었습니다', 'success');
             } catch (error) {
                 UI.showToast('❌ 저장 실패: ' + error.message, 'error');
             } finally {
@@ -1080,7 +1073,10 @@ const App = {
                     resultDiv.style.display = 'block';
                     resultDiv.innerHTML = '<p style="color: #10b981;">✅ 연결 성공! API가 정상적으로 작동합니다.</p>';
                 } else {
-                    throw new Error('API 응답 오류');
+                    // 에러 상세 내용 읽기
+                    const errorData = await response.json().catch(() => ({ error: { message: '알 수 없는 오류' } }));
+                    const errorMsg = errorData.error?.message || `HTTP ${response.status}`;
+                    throw new Error(`${errorMsg} (상태 코드: ${response.status})`);
                 }
             } catch (error) {
                 UI.showToast('❌ API 연결 실패', 'error');
@@ -1093,17 +1089,16 @@ const App = {
         };
     },
 
-    // Vertex AI 테스트 버튼
+    // Vertex AI 테스트 버튼 (Service Account 방식)
     setupVertexAiTestButton() {
         const testBtn = document.getElementById('test-vertex-ai-btn');
         const resultDiv = document.getElementById('vertex-ai-test-result');
 
         testBtn.onclick = async () => {
-            const apiKey = document.getElementById('vertex-ai-api-key').value.trim();
             const projectId = document.getElementById('vertex-ai-project-id').value.trim();
 
-            if (!apiKey || !projectId) {
-                UI.showToast('API 키와 Project ID를 모두 입력해주세요', 'error');
+            if (!projectId) {
+                UI.showToast('Project ID를 입력해주세요', 'error');
                 return;
             }
 
@@ -1112,10 +1107,14 @@ const App = {
             resultDiv.style.display = 'none';
 
             try {
-                // Vertex AI API 테스트 (실제 엔드포인트)
-                UI.showToast('✅ 입력 정보 검증 완료', 'success');
+                // Project ID 형식 검증
+                if (!/^[a-z0-9\-]+$/.test(projectId)) {
+                    throw new Error('Project ID 형식이 올바르지 않습니다. 소문자, 숫자, 하이픈(-)만 사용 가능합니다.');
+                }
+
+                UI.showToast('✅ Project ID 형식 검증 완료', 'success');
                 resultDiv.style.display = 'block';
-                resultDiv.innerHTML = '<p style="color: #10b981;">✅ 입력 정보가 올바른 형식입니다. 저장 후 이미지 생성 시 실제 연결이 테스트됩니다.</p>';
+                resultDiv.innerHTML = '<p style="color: #10b981;">✅ Project ID 형식이 올바릅니다. 저장 후 이미지 생성 시 서버의 Service Account 키로 인증됩니다.</p>';
             } catch (error) {
                 UI.showToast('❌ 테스트 실패', 'error');
                 resultDiv.style.display = 'block';
@@ -1145,8 +1144,8 @@ const App = {
             resultDiv.style.display = 'none';
 
             try {
-                // Gemini API 테스트
-                const testUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${geminiApiKey}`;
+                // Gemini API 테스트 (안정적인 gemini-2.5-flash 모델 사용)
+                const testUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
                 const response = await fetch(testUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1160,7 +1159,10 @@ const App = {
                     resultDiv.style.display = 'block';
                     resultDiv.innerHTML = '<p style="color: #10b981;">✅ 연결 성공! Gemini API가 정상적으로 작동합니다.</p>';
                 } else {
-                    throw new Error('API 응답 오류');
+                    // 에러 상세 내용 읽기
+                    const errorData = await response.json().catch(() => ({ error: { message: '알 수 없는 오류' } }));
+                    const errorMsg = errorData.error?.message || `HTTP ${response.status}`;
+                    throw new Error(`${errorMsg} (상태 코드: ${response.status})`);
                 }
             } catch (error) {
                 UI.showToast('❌ API 연결 실패', 'error');
