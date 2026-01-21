@@ -46,23 +46,17 @@ export default async function handler(req, res) {
         }
 
         // POST: API 설정 저장 (Vertex AI 전용)
-        if (request.method === 'POST') {
-            const { projectId } = await request.json();
+        if (req.method === 'POST') {
+            const { projectId } = req.body;
 
             if (!projectId) {
-                return new Response(
-                    JSON.stringify({ error: 'Vertex AI Project ID를 입력해주세요' }),
-                    { status: 400, headers }
-                );
+                return res.status(400).json({ error: 'Vertex AI Project ID를 입력해주세요' });
             }
 
             // Vertex AI Service Account 방식으로 고정
             await saveUserApiSettings(decoded.username, 'vertex_ai', 'service_account', projectId);
 
-            return new Response(
-                JSON.stringify({ message: 'Vertex AI 설정이 저장되었습니다' }),
-                { status: 200, headers }
-            );
+            return res.status(200).json({ message: 'Vertex AI 설정이 저장되었습니다' });
         }
 
         return res.status(405).json({ error: 'Method not allowed' });
