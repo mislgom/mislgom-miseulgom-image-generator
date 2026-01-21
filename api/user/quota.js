@@ -27,7 +27,7 @@ export default async function handler(request) {
     }
 
     // JWT 토큰 검증
-    const authHeader = request.headers['authorization'] || request.headers['Authorization'];
+    const authHeader = request.headers.get('Authorization');
 
     if (!authHeader?.startsWith('Bearer ')) {
         return new Response(
