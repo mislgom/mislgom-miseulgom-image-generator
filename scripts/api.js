@@ -390,49 +390,81 @@ const API = {
         try {
             const scriptsJson = JSON.stringify(scripts, null, 2);
 
-            // 🆕 System Instruction 정의 (v3.0 - 시대 판별 + 디테일 복식)
+            // 🆕 System Instruction 정의 (v4.0 - 한국/일본 다국어 지원 + 시대 판별 + 디테일 복식)
             const systemInstruction = {
                 parts: [{
-                    text: `당신은 한국 드라마/이야기 대본을 분석하는 전문가입니다. 시대 배경을 정확히 판별하고, 등장인물을 추출하며, 장면 수를 계산합니다.
+                    text: `당신은 한국/일본 드라마/이야기/야담 대본을 분석하는 전문가입니다. 대본의 언어(한국어/일본어)를 자동으로 감지하고, 시대 배경을 정확히 판별하며, 등장인물을 추출하고, 장면 수를 계산합니다.
 
 **역할:**
-1. 대본의 시대 배경을 자동으로 판별합니다 (조선시대/현대/미래/SF)
-2. 등장인물을 추출하고 시대에 맞는 복식/헤어스타일을 구체적으로 묘사합니다
-3. 시각적 변화를 감지하여 필요한 장면 수를 계산합니다
+1. 대본의 언어를 자동으로 감지합니다 (한국어/일본어)
+2. 대본의 시대 배경을 자동으로 판별합니다 (한국: 조선시대/현대, 일본: 에도시대/메이지시대/현대 등)
+3. 등장인물을 추출하고 시대와 문화권에 맞는 복식/헤어스타일을 구체적으로 묘사합니다
+4. 시각적 변화를 감지하여 필요한 장면 수를 계산합니다
 
 **시대 판별 규칙:**
-- **조선시대**: "갓", "한복", "양반", "사또", "궁궐", "초가", "기생", "상투" 등
-- **현대**: "자동차", "휴대폰", "회사", "아파트", "카페", "인터넷", "양복", "청바지" 등
-- **미래/SF**: "로봇", "우주", "사이버", "AI", "홀로그램", "타임머신" 등
-- **판타지**: "마법", "드래곤", "이세계", "던전" 등
+
+**한국:**
+- **joseon** (조선시대): "갓", "한복", "양반", "사또", "궁궐", "초가", "기생", "상투", "대감" 등
+- **modern** (현대): "자동차", "휴대폰", "회사", "아파트", "카페", "인터넷", "양복", "청바지" 등
+
+**일본:**
+- **edo** (에도시대, 1603-1868): "侍" (사무라이), "刀", "着物", "江戸", "大名", "町人", "ちょんまげ" (상투머리) 등
+- **meiji** (메이지시대, 1868-1912): "文明開化", "洋服", "ガス灯", "人力車", "明治" 등
+- **taisho** (다이쇼시대, 1912-1926): "大正", "モダン", "カフェー", "洋館" 등
+- **showa** (쇼와시대, 1926-1989): "昭和", "戦争", "高度成長" 등
+- **modern** (현代, 1989-현재): "携帯", "パソコン", "会社", "マンション", "カフェ" 등
+
+**공통:**
+- **future** (미래/SF): "로봇", "우주", "사이버", "AI", "ロボット", "宇宙" 등
+- **fantasy** (판타지): "마법", "드래곤", "이세계", "魔法", "ドラゴン", "異世界" 등
 
 **등장인물 추출 규칙:**
 - 대본에 등장하는 모든 주요 인물을 추출하세요
-- 한글 이름과 영문 이름(로마자 표기)을 함께 제공하세요
-- 시대에 맞는 복식과 헤어스타일을 **매우 구체적으로** 묘사하세요
+- 일본어 이름은 로마자 표기로 변환하세요 (예: 田中太郎 → Tanaka Taro)
+- 시대와 문화권에 맞는 복식과 헤어스타일을 **매우 구체적으로** 묘사하세요
 
-**시대별 복식/헤어 디테일:**
+**시대/문화권별 복식/헤어 디테일:**
 
-조선시대 남성:
+**한국 - 조선시대 남성:**
 - 복식: "wearing traditional Joseon hanbok with dopo overcoat, gat (traditional Korean hat), silk belt"
 - 머리: "topknot hairstyle (sangtu) with traditional Korean headband"
 
-조선시대 여성:
+**한국 - 조선시대 여성:**
 - 복식: "wearing elegant Joseon hanbok with jeogori (short jacket) and chima (long skirt), daenggi hair ribbon"
 - 머리: "traditional Korean braided hairstyle with daenggi ribbon, jokduri crown (for married women)"
 
-현대 남성:
+**일본 - 에도시대 남성 (사무라이):**
+- 복식: "wearing traditional samurai kimono with hakama (wide-leg pants), katana sword at waist, mon family crest"
+- 머리: "chonmage topknot hairstyle with shaved forehead"
+
+**일본 - 에도시대 남성 (일반인):**
+- 복식: "wearing simple kimono with obi belt, wooden geta sandals"
+- 머리: "short topknot or loose hair"
+
+**일본 - 에도시대 여성:**
+- 복식: "wearing elegant kimono with wide obi belt, tabi socks, zori sandals"
+- 머리: "traditional nihongami hairstyle with kanzashi ornaments, elegant updo"
+
+**일본 - 메이지시대 남성:**
+- 복식: "wearing Western-style suit mixed with traditional hakama, or full Western clothing"
+- 머리: "Western short hairstyle or traditional topknot transitioning to modern cut"
+
+**일본 - 메이지시대 여성:**
+- 복식: "wearing kimono transitioning to Western dress, or hybrid style mixing both"
+- 머리: "traditional updo transitioning to Western hairstyles"
+
+**현대 (한국/일본 공통) 남성:**
 - 복식: "wearing modern business suit with tie, or casual jeans and t-shirt"
 - 머리: "modern short hairstyle, clean shaven or light beard"
 
-현대 여성:
-- 복식: "wearing modern casual dress, or office blouse and skirt, contemporary Korean fashion"
+**현대 (한국/일본 공통) 여성:**
+- 복식: "wearing modern casual dress, or office blouse and skirt, contemporary fashion"
 - 머리: "modern hairstyle with long flowing hair or short bob cut, natural makeup"
 
 **중요: 등장인물 설명은 반드시 다음을 포함하세요:**
 1. 나이대 (20s, 30s, 40s, 50s)
-2. 시대에 맞는 구체적인 복식 (조선시대: jeogori/chima/gat, 현대: suit/jeans)
-3. 헤어스타일 (조선시대: sangtu/daenggi, 현대: modern hairstyle)
+2. 시대와 문화권에 맞는 구체적인 복식 (예: 에도시대 사무라이: hakama/katana, 조선시대: jeogori/chima/gat)
+3. 헤어스타일 (예: 에도시대: chonmage, 조선시대: sangtu/daenggi, 현대: modern hairstyle)
 4. 얼굴 특징 (kind expression, sharp eyes, gentle smile 등)
 
 **컷 수 계산 규칙 (Visual Trigger Rule):**
@@ -452,14 +484,14 @@ const API = {
                 }]
             };
 
-            // 🆕 JSON Schema 정의 (Gemini API 호환) - v3.0 era 추가
+            // 🆕 JSON Schema 정의 (Gemini API 호환) - v4.0 다국어 지원 (한국/일본 시대 포함)
             const responseSchema = {
                 type: "object",
                 properties: {
                     era: {
                         type: "string",
-                        description: "대본의 시대 배경 (joseon/modern/future/fantasy)",
-                        enum: ["joseon", "modern", "future", "fantasy"]
+                        description: "대본의 시대 배경 (한국: joseon/modern, 일본: edo/meiji/taisho/showa/modern, 공통: future/fantasy)",
+                        enum: ["joseon", "edo", "meiji", "taisho", "showa", "modern", "future", "fantasy"]
                     },
                     characters: {
                         type: "array",
@@ -469,11 +501,11 @@ const API = {
                             properties: {
                                 name: {
                                     type: "string",
-                                    description: "한글 이름"
+                                    description: "원어 이름 (한글 또는 일본어 원문)"
                                 },
                                 nameEn: {
                                     type: "string",
-                                    description: "영문 이름"
+                                    description: "영문/로마자 이름 (예: Tanaka Taro, Kim Minho)"
                                 },
                                 descriptionKo: {
                                     type: "string",
@@ -485,8 +517,8 @@ const API = {
                                 },
                                 era: {
                                     type: "string",
-                                    description: "이 인물의 시대 배경 (joseon/modern/future/fantasy)",
-                                    enum: ["joseon", "modern", "future", "fantasy"]
+                                    description: "이 인물의 시대 배경 (한국: joseon/modern, 일본: edo/meiji/taisho/showa/modern, 공통: future/fantasy)",
+                                    enum: ["joseon", "edo", "meiji", "taisho", "showa", "modern", "future", "fantasy"]
                                 }
                             },
                             required: ["name", "nameEn", "descriptionKo", "descriptionEn", "era"]
@@ -703,14 +735,20 @@ ${scriptsJson}
 
             const systemInstruction = {
                 parts: [{
-                    text: `당신은 이미지 생성 프롬프트 전문가입니다. 한국 드라마/이야기 장면을 영어 프롬프트로 변환합니다.
+                    text: `당신은 이미지 생성 프롬프트 전문가입니다. 한국/일본 드라마/이야기/야담 장면을 정확한 영어 프롬프트로 변환합니다.
 
 **중요 원칙:**
 1. 등장인물 정보를 **반드시** 프롬프트에 포함하여 일관성 유지
 2. 장면의 시각적 요소를 구체적으로 묘사 (장소, 시간, 조명, 분위기)
 3. 자연스러운 문장형 프롬프트 작성
 4. "masterpiece, best quality" 같은 부스터 태그는 사용하지 않음
-5. 중국풍/일본풍 요소를 피하고 한국 문화에 집중
+5. 각 문화권(한국/일본)의 특성을 정확히 반영하여 묘사
+6. 한국어 대본이든 일본어 대본이든 완벽하게 이해하고 영문으로 변환
+
+**문화권별 주의사항:**
+- **한국**: 조선시대(hanbok, gat, jeogori, chima), 현대 한국 패션
+- **일본**: 에도시대(kimono, hakama, katana, chonmage), 메이지시대(Western-Japanese fusion), 현대 일본 패션
+- 시대 배경(era)에 맞는 정확한 복식과 배경 묘사 필수
 
 **출력 형식:**
 순수 영문 프롬프트만 출력하세요. JSON 형식이나 추가 설명은 포함하지 마세요.`
@@ -735,10 +773,11 @@ ${scriptText}
 ${characterInfo}
 
 **스타일:** ${style}
-**시대 배경:** ${era || 'joseon'}
+**시대 배경:** ${era || 'modern'}
 
 **요구사항:**
-- 등장인물이 있다면 정확한 설명 포함 (예: "featuring Yoon Haerin wearing elegant Joseon hanbok")
+- 등장인물이 있다면 정확한 설명 포함 (예시: "featuring [character name] wearing [era-appropriate clothing]")
+- 시대 배경(era)에 맞는 정확한 복식과 배경 묘사 (예: 조선시대=hanbok/gat, 에도시대=kimono/hakama)
 - 장소, 시간대, 조명, 분위기를 구체적으로 묘사
 - 자연스러운 문장형 프롬프트로 작성
 
