@@ -29,6 +29,13 @@ const App = {
             // 이미지 생성 API 설정 로드
             API.loadImageApiSettings();
 
+            // ✅ 추가: Gemini API 키 로드 (대본 분석용)
+            const savedGeminiKey = localStorage.getItem('gemini_api_key');
+            if (savedGeminiKey && window.API) {
+                API.GEMINI_API_KEY = savedGeminiKey;
+                console.log('✅ Gemini API 키 로드됨');
+            }
+
             // 이벤트 리스너 등록
             this.attachEventListeners();
 
