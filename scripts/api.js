@@ -4,24 +4,22 @@
  */
 
 const API = {
-    // API 기본 URL
-    baseURL: window.location.hostname === 'localhost' 
-        ? 'http://localhost:8000' 
-        : 'https://miseulgom-backend.railway.app',
+    // API 기본 URL (Vercel 배포 환경에서는 빈 문자열 사용)
+    baseURL: '',
 
     // 이미지 생성 API 설정 (LocalStorage에서 로드)
     IMAGE_API_TYPE: null, // 'ai_studio' 또는 'vertex_ai'
     IMAGE_API_KEY: null,
     IMAGE_PROJECT_ID: null,
 
-    // Rate Limit 보호
+    // Rate Limit 보호 (AI Studio 기본값)
     lastRequestTime: 0,
-    minDelay: 3000, // 최소 3초
-    maxDelay: 6000, // 최대 6초
+    minDelay: 6000, // 최소 6초 (AI Studio 무료 tier: 분당 10회 제한 대응)
+    maxDelay: 10000, // 최대 10초
 
     // Gemini 대본 분석 API 설정
     GEMINI_API_KEY: '', // 사용자가 입력해야 함
-    GEMINI_API_URL: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent',
+    GEMINI_API_URL: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
 
     // ========== LocalStorage 기반 API 설정 관리 ==========
 
@@ -223,15 +221,32 @@ const API = {
     // ========== Google Image Generation API ==========
 
     /**
-     * Rate Limit 보호를 위한 딜레이 (3~6초 랜덤)
+     * API별 딜레이 설정 가져오기
+     * @param {string} apiType - 'ai_studio' 또는 'vertex_ai'
+     * @returns {Object} - { min, max } 딜레이 범위 (밀리초)
      */
-    async _waitBeforeRequest() {
+    getDelayForApi(apiType) {
+        if (apiType === 'vertex_ai') {
+            // Vertex AI: 더 관대한 Rate Limit (1-2초)
+            return { min: 1000, max: 2000 };
+        } else {
+            // AI Studio: 엄격한 Rate Limit (6-10초, 분당 10회)
+            return { min: 6000, max: 10000 };
+        }
+    },
+
+    /**
+     * Rate Limit 보호를 위한 딜레이 (API별 차별화)
+     * @param {string} apiType - 'ai_studio' 또는 'vertex_ai'
+     */
+    async _waitBeforeRequest(apiType = 'ai_studio') {
+        const { min, max } = this.getDelayForApi(apiType);
         const elapsed = Date.now() - this.lastRequestTime;
-        const requiredDelay = Math.random() * (this.maxDelay - this.minDelay) + this.minDelay;
+        const requiredDelay = Math.random() * (max - min) + min;
 
         if (elapsed < requiredDelay) {
             const waitTime = requiredDelay - elapsed;
-            console.log(`⏳ Rate Limit 보호: ${(waitTime/1000).toFixed(1)}초 대기...`);
+            console.log(`⏳ ${apiType === 'vertex_ai' ? 'Vertex AI' : 'AI Studio'} Rate Limit 보호: ${(waitTime/1000).toFixed(1)}초 대기...`);
             await new Promise(resolve => setTimeout(resolve, waitTime));
         }
 
@@ -284,14 +299,29 @@ const API = {
             throw new Error('로그인이 필요합니다');
         }
 
+        // 선택된 API 타입 가져오기 (서버에서 설정된 것 사용)
+        let selectedApiType = 'ai_studio'; // 기본값
+        try {
+            const settingsResponse = await fetch('/api/user/settings', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (settingsResponse.ok) {
+                const settings = await settingsResponse.json();
+                selectedApiType = settings.apiType || 'ai_studio';
+            }
+        } catch (error) {
+            console.warn('API 타입 확인 실패, 기본값 사용:', error);
+        }
+
         console.log('🎨 이미지 생성 요청:', {
             prompt: prompt.substring(0, 50) + '...',
-            aspectRatio
+            aspectRatio,
+            apiType: selectedApiType
         });
 
-        // Rate Limit 보호 및 재시도
+        // Rate Limit 보호 및 재시도 (API별 차별화된 딜레이)
         return await this._retryWithBackoff(async () => {
-            await this._waitBeforeRequest();
+            await this._waitBeforeRequest(selectedApiType);
 
             // Vercel 서버리스 함수 호출
             const response = await fetch('/api/generate-image', {

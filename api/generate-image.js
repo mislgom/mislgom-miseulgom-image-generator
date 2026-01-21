@@ -3,6 +3,7 @@
  */
 
 import jwt from 'jsonwebtoken';
+import { GoogleAuth } from 'google-auth-library';
 import { getUserApiSettings, checkQuota, incrementQuota } from '../lib/db.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
@@ -52,9 +53,17 @@ export default async function handler(request) {
         // 사용자 API 설정 가져오기
         const apiSettings = await getUserApiSettings(decoded.username);
 
-        if (!apiSettings.apiKey) {
+        // AI Studio는 API Key 필수, Vertex AI는 Service Account 방식이므로 검증 생략
+        if (apiSettings.apiType === 'ai_studio' && !apiSettings.apiKey) {
             return new Response(
                 JSON.stringify({ error: 'API 키를 먼저 설정해주세요. 설정 메뉴에서 Google API 키를 등록하세요.' }),
+                { status: 400, headers }
+            );
+        }
+
+        if (apiSettings.apiType === 'vertex_ai' && !apiSettings.projectId) {
+            return new Response(
+                JSON.stringify({ error: 'Vertex AI Project ID를 먼저 설정해주세요.' }),
                 { status: 400, headers }
             );
         }
@@ -84,13 +93,14 @@ export default async function handler(request) {
         let imageUrl;
 
         if (apiSettings.apiType === 'vertex_ai') {
+            // Vertex AI는 Service Account 방식
             imageUrl = await generateWithVertexAI(
                 prompt,
                 aspectRatio,
-                apiSettings.apiKey,
                 apiSettings.projectId
             );
         } else {
+            // AI Studio는 API Key 방식
             imageUrl = await generateWithAIStudio(
                 prompt,
                 aspectRatio,
@@ -167,39 +177,70 @@ async function generateWithAIStudio(prompt, aspectRatio, apiKey) {
     return `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
 }
 
-// Vertex AI API 호출
-async function generateWithVertexAI(prompt, aspectRatio, apiKey, projectId) {
+// Vertex AI API 호출 (Service Account JSON 키 인증 방식)
+async function generateWithVertexAI(prompt, aspectRatio, projectId) {
     if (!projectId) {
         throw new Error('Vertex AI Project ID is required');
     }
 
-    const endpoint = `https://us-central1-aiplatform.googleapis.com/v1/projects/${projectId}/locations/us-central1/publishers/google/models/imagen-3.0-generate-001:predict`;
+    // Service Account JSON 키 확인
+    const serviceAccountKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+    if (!serviceAccountKey) {
+        throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY 환경 변수가 설정되지 않았습니다');
+    }
 
-    const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-            instances: [{ prompt }],
-            parameters: { sampleCount: 1, aspectRatio }
-        })
-    });
+    try {
+        // Service Account JSON 파싱
+        const credentials = JSON.parse(serviceAccountKey);
 
-    if (!response.ok) {
-        if (response.status === 429) {
-            throw new Error('429 RESOURCE_EXHAUSTED');
+        // GoogleAuth 인스턴스 생성
+        const auth = new GoogleAuth({
+            credentials,
+            scopes: ['https://www.googleapis.com/auth/cloud-platform']
+        });
+
+        // OAuth 액세스 토큰 생성
+        const client = await auth.getClient();
+        const accessToken = await client.getAccessToken();
+
+        if (!accessToken.token) {
+            throw new Error('OAuth 토큰 생성 실패');
         }
-        throw new Error(`Vertex AI API error: ${response.status}`);
+
+        // Vertex AI Imagen 4.0 Fast 모델 엔드포인트
+        const endpoint = `https://us-central1-aiplatform.googleapis.com/v1/projects/${projectId}/locations/us-central1/publishers/google/models/imagen-4.0-fast-generate-001:predict`;
+
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken.token}`
+            },
+            body: JSON.stringify({
+                instances: [{ prompt }],
+                parameters: { sampleCount: 1, aspectRatio }
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            if (response.status === 429) {
+                throw new Error('429 RESOURCE_EXHAUSTED');
+            }
+            throw new Error(`Vertex AI API error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
+        }
+
+        const data = await response.json();
+        const imageData = data.predictions?.[0]?.bytesBase64Encoded;
+
+        if (!imageData) {
+            throw new Error('No image generated');
+        }
+
+        return `data:image/png;base64,${imageData}`;
+
+    } catch (error) {
+        console.error('Vertex AI error:', error);
+        throw new Error(`Vertex AI 이미지 생성 실패: ${error.message}`);
     }
-
-    const data = await response.json();
-    const imageData = data.predictions?.[0]?.bytesBase64Encoded;
-
-    if (!imageData) {
-        throw new Error('No image generated');
-    }
-
-    return `data:image/png;base64,${imageData}`;
 }

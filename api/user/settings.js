@@ -60,21 +60,33 @@ export default async function handler(request) {
         if (request.method === 'POST') {
             const { apiType, apiKey, projectId } = await request.json();
 
-            if (!apiType || !apiKey) {
+            if (!apiType) {
                 return new Response(
-                    JSON.stringify({ error: 'API 타입과 API 키를 입력해주세요' }),
+                    JSON.stringify({ error: 'API 타입을 선택해주세요' }),
                     { status: 400, headers }
                 );
             }
 
-            if (apiType === 'vertex_ai' && !projectId) {
-                return new Response(
-                    JSON.stringify({ error: 'Vertex AI 사용 시 Project ID가 필요합니다' }),
-                    { status: 400, headers }
-                );
+            // Vertex AI는 Service Account 방식이므로 projectId만 필수
+            if (apiType === 'vertex_ai') {
+                if (!projectId) {
+                    return new Response(
+                        JSON.stringify({ error: 'Vertex AI 사용 시 Project ID가 필요합니다' }),
+                        { status: 400, headers }
+                    );
+                }
+                // Service Account 방식이므로 apiKey는 'service_account' 플래그로 저장
+                await saveUserApiSettings(decoded.username, apiType, 'service_account', projectId);
+            } else {
+                // AI Studio는 API Key 필수
+                if (!apiKey) {
+                    return new Response(
+                        JSON.stringify({ error: 'API 키를 입력해주세요' }),
+                        { status: 400, headers }
+                    );
+                }
+                await saveUserApiSettings(decoded.username, apiType, apiKey, projectId);
             }
-
-            await saveUserApiSettings(decoded.username, apiType, apiKey, projectId);
 
             return new Response(
                 JSON.stringify({ message: 'API 설정이 저장되었습니다' }),
