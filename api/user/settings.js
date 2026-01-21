@@ -45,29 +45,24 @@ export default async function handler(req, res) {
             });
         }
 
-        // POST: API 설정 저장
-        if (req.method === 'POST') {
-            const { apiType, apiKey, projectId } = req.body;
+        // POST: API 설정 저장 (Vertex AI 전용)
+        if (request.method === 'POST') {
+            const { projectId } = await request.json();
 
-            if (!apiType) {
-                return res.status(400).json({ error: 'API 타입을 선택해주세요' });
+            if (!projectId) {
+                return new Response(
+                    JSON.stringify({ error: 'Vertex AI Project ID를 입력해주세요' }),
+                    { status: 400, headers }
+                );
             }
 
-            // Vertex AI는 Service Account 방식이므로 projectId만 필수
-            if (apiType === 'vertex_ai') {
-                if (!projectId) {
-                    return res.status(400).json({ error: 'Vertex AI 사용 시 Project ID가 필요합니다' });
-                }
-                await saveUserApiSettings(decoded.username, apiType, 'service_account', projectId);
-            } else {
-                // AI Studio는 API Key 필수
-                if (!apiKey) {
-                    return res.status(400).json({ error: 'API 키를 입력해주세요' });
-                }
-                await saveUserApiSettings(decoded.username, apiType, apiKey, projectId);
-            }
+            // Vertex AI Service Account 방식으로 고정
+            await saveUserApiSettings(decoded.username, 'vertex_ai', 'service_account', projectId);
 
-            return res.status(200).json({ message: 'API 설정이 저장되었습니다' });
+            return new Response(
+                JSON.stringify({ message: 'Vertex AI 설정이 저장되었습니다' }),
+                { status: 200, headers }
+            );
         }
 
         return res.status(405).json({ error: 'Method not allowed' });

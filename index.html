@@ -164,34 +164,6 @@
                 </div>
             </div>
 
-            <!-- 이미지 생성 API 선택 -->
-            <div class="sidebar-section">
-                <h3 class="section-title">🌐 이미지 생성 API</h3>
-                <div class="api-selector">
-                    <label class="api-option">
-                        <input type="radio" name="image-api" value="ai_studio" id="api-ai-studio">
-                        <span class="api-content">
-                            <span class="api-info">
-                                <span class="api-name">🟢 AI Studio</span>
-                                <span class="api-desc">1일 100장 무료 (Gemini 2.0 Flash)</span>
-                            </span>
-                        </span>
-                    </label>
-                    <label class="api-option">
-                        <input type="radio" name="image-api" value="vertex_ai" id="api-vertex-ai">
-                        <span class="api-content">
-                            <span class="api-info">
-                                <span class="api-name">🔵 Vertex AI</span>
-                                <span class="api-desc">무료 $300 크레딧 (Imagen 3.0)</span>
-                            </span>
-                        </span>
-                    </label>
-                </div>
-                <small id="api-selection-warning" style="color: var(--warning-color); font-size: 12px; display: block; margin-top: 8px;">
-                    ⚠️ 이미지 생성 전 API를 먼저 선택하세요
-                </small>
-            </div>
-
             <!-- 이미지 스타일 -->
             <div class="sidebar-section">
                 <h3 class="section-title">🎨 이미지 스타일</h3>
@@ -711,15 +683,11 @@
                 <button class="modal-close">&times;</button>
             </div>
             <div class="modal-body">
-                <!-- API 타입 선택 탭 (3개) -->
+                <!-- API 타입 선택 탭 (2개: Vertex AI + 대본 분석) -->
                 <div class="api-type-tabs">
-                    <button class="api-tab active" data-type="ai_studio">
-                        <span class="tab-title">AI Studio</span>
-                        <span class="tab-desc">1일 100장 무료</span>
-                    </button>
-                    <button class="api-tab" data-type="vertex_ai">
+                    <button class="api-tab active" data-type="vertex_ai">
                         <span class="tab-title">Vertex AI</span>
-                        <span class="tab-desc">무료 $300 크레딧</span>
+                        <span class="tab-desc">무료 $300 크레딧 (Imagen 4.0)</span>
                     </button>
                     <button class="api-tab" data-type="script_analysis">
                         <span class="tab-title">대본 분석 API</span>
@@ -727,44 +695,8 @@
                     </button>
                 </div>
 
-                <!-- AI Studio 설정 폼 -->
-                <div class="api-settings-form" id="ai-studio-form">
-                    <h3 style="margin-bottom: 16px; color: var(--text-primary); font-size: 16px; font-weight: 600;">
-                        🟢 AI Studio (이미지 생성)
-                    </h3>
-
-                    <div class="form-group">
-                        <label for="ai-studio-api-key">
-                            API Key <span class="required">*</span>
-                        </label>
-                        <input
-                            type="password"
-                            id="ai-studio-api-key"
-                            class="input-text"
-                            placeholder="AIza..."
-                            autocomplete="off"
-                        >
-                        <p class="input-hint">
-                            <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">
-                                🔗 AI Studio에서 무료 API 키 발급받기
-                            </a>
-                        </p>
-                    </div>
-
-                    <div class="form-actions">
-                        <button id="test-ai-studio-btn" class="btn btn-secondary">
-                            🔌 연결 테스트
-                        </button>
-                        <button id="save-ai-studio-btn" class="btn btn-primary">
-                            💾 저장
-                        </button>
-                    </div>
-
-                    <div id="ai-studio-test-result" class="api-test-result" style="display: none;"></div>
-                </div>
-
                 <!-- Vertex AI 설정 폼 (Service Account 방식) -->
-                <div class="api-settings-form" id="vertex-ai-form" style="display: none;">
+                <div class="api-settings-form" id="vertex-ai-form">
                     <h3 style="margin-bottom: 16px; color: var(--text-primary); font-size: 16px; font-weight: 600;">
                         🔵 Vertex AI (이미지 생성)
                     </h3>
@@ -824,7 +756,7 @@
                         >
                         <p class="input-hint">
                             <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">
-                                🔗 AI Studio에서 무료 API 키 발급받기
+                                🔗 Google AI Studio에서 무료 API 키 발급받기
                             </a>
                             <br>
                             💡 대본 AI 분석용 (없으면 규칙 기반 분석 사용)

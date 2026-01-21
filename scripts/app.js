@@ -364,39 +364,6 @@ const App = {
             e.preventDefault();
         }, false);
 
-        // 이미지 생성 API 선택 라디오 버튼
-        const imageApiRadios = document.querySelectorAll('input[name="image-api"]');
-        const apiWarning = document.getElementById('api-selection-warning');
-
-        imageApiRadios.forEach(radio => {
-            radio.addEventListener('change', (e) => {
-                const selectedApi = e.target.value;
-                console.log(`✅ 이미지 생성 API 선택: ${selectedApi}`);
-
-                // 선택된 API를 localStorage에 저장
-                localStorage.setItem('selected_image_api', selectedApi);
-
-                // 경고 메시지 숨김
-                if (apiWarning) {
-                    apiWarning.style.display = 'none';
-                }
-
-                UI.showToast(`${selectedApi === 'ai_studio' ? 'AI Studio' : 'Vertex AI'} API가 선택되었습니다`, 'success');
-            });
-        });
-
-        // 페이지 로드 시 이전 선택 복원
-        const savedApi = localStorage.getItem('selected_image_api');
-        if (savedApi) {
-            const savedRadio = document.querySelector(`input[name="image-api"][value="${savedApi}"]`);
-            if (savedRadio) {
-                savedRadio.checked = true;
-                if (apiWarning) {
-                    apiWarning.style.display = 'none';
-                }
-            }
-        }
-
         console.log('✅ 이벤트 리스너 등록 완료');
     },
 
@@ -858,12 +825,10 @@ const App = {
 
         // 모든 탭 버튼
         const allTabs = modal.querySelectorAll('.api-tab');
-        const aiStudioTab = modal.querySelector('[data-type="ai_studio"]');
         const vertexAiTab = modal.querySelector('[data-type="vertex_ai"]');
         const scriptAnalysisTab = modal.querySelector('[data-type="script_analysis"]');
 
         // 모든 폼 섹션
-        const aiStudioForm = document.getElementById('ai-studio-form');
         const vertexAiForm = document.getElementById('vertex-ai-form');
         const scriptAnalysisForm = document.getElementById('script-analysis-form');
 
@@ -875,13 +840,11 @@ const App = {
             activeTab.classList.add('active');
 
             // 모든 폼 숨기기
-            aiStudioForm.style.display = 'none';
             vertexAiForm.style.display = 'none';
             scriptAnalysisForm.style.display = 'none';
 
             // 선택한 폼 표시
             const tabType = activeTab.dataset.type;
-            if (tabType === 'ai_studio') aiStudioForm.style.display = 'block';
             if (tabType === 'vertex_ai') vertexAiForm.style.display = 'block';
             if (tabType === 'script_analysis') scriptAnalysisForm.style.display = 'block';
         };
@@ -894,13 +857,11 @@ const App = {
         // 기존 설정 로드
         await this.loadApiSettings();
 
-        // 각 API별 저장 버튼 설정
-        this.setupAiStudioSaveButton();
+        // 각 API별 저장 버튼 설정 (Vertex AI + 대본 분석만)
         this.setupVertexAiSaveButton();
         this.setupGeminiSaveButton();
 
-        // 각 API별 테스트 버튼 설정
-        this.setupAiStudioTestButton();
+        // 각 API별 테스트 버튼 설정 (Vertex AI + 대본 분석만)
         this.setupVertexAiTestButton();
         this.setupGeminiTestButton();
 
@@ -919,8 +880,8 @@ const App = {
             }
         };
 
-        // 기본 탭 표시 (AI Studio)
-        switchTab(aiStudioTab);
+        // 기본 탭 표시 (Vertex AI)
+        switchTab(vertexAiTab);
 
         modal.style.display = 'flex';
     },
@@ -939,15 +900,9 @@ const App = {
                 if (response.ok) {
                     const settings = await response.json();
 
-                    if (settings.apiType === 'ai_studio' && settings.hasApiKey) {
-                        document.getElementById('ai-studio-api-key').placeholder = '기존 API 키가 설정되어 있습니다';
-                    }
-
-                    if (settings.apiType === 'vertex_ai') {
-                        // Vertex AI는 Service Account 방식이므로 Project ID만 표시
-                        if (settings.projectId) {
-                            document.getElementById('vertex-ai-project-id').value = settings.projectId;
-                        }
+                    // Vertex AI Project ID 표시
+                    if (settings.projectId) {
+                        document.getElementById('vertex-ai-project-id').value = settings.projectId;
                     }
                 }
             }
@@ -960,33 +915,6 @@ const App = {
         if (savedGeminiKey) {
             document.getElementById('gemini-api-key-input').value = savedGeminiKey;
         }
-    },
-
-    // AI Studio 저장 버튼
-    setupAiStudioSaveButton() {
-        const saveBtn = document.getElementById('save-ai-studio-btn');
-        saveBtn.onclick = async () => {
-            const apiKey = document.getElementById('ai-studio-api-key').value.trim();
-
-            if (!apiKey) {
-                UI.showToast('API 키를 입력해주세요', 'error');
-                return;
-            }
-
-            saveBtn.disabled = true;
-            saveBtn.textContent = '💾 저장 중...';
-
-            try {
-                await API.saveImageApiSettings('ai_studio', apiKey, null);
-                await this.updateApiStatusDisplay();
-                UI.showToast('✅ AI Studio API 설정이 저장되었습니다', 'success');
-            } catch (error) {
-                UI.showToast('❌ 저장 실패: ' + error.message, 'error');
-            } finally {
-                saveBtn.disabled = false;
-                saveBtn.textContent = '💾 저장';
-            }
-        };
     },
 
     // Vertex AI 저장 버튼 (Service Account 방식)
@@ -1036,55 +964,6 @@ const App = {
                     API.GEMINI_API_KEY = '';
                 }
                 UI.showToast('✅ Gemini API 키가 제거되었습니다', 'info');
-            }
-        };
-    },
-
-    // AI Studio 테스트 버튼
-    setupAiStudioTestButton() {
-        const testBtn = document.getElementById('test-ai-studio-btn');
-        const resultDiv = document.getElementById('ai-studio-test-result');
-
-        testBtn.onclick = async () => {
-            const apiKey = document.getElementById('ai-studio-api-key').value.trim();
-
-            if (!apiKey) {
-                UI.showToast('API 키를 입력해주세요', 'error');
-                return;
-            }
-
-            testBtn.disabled = true;
-            testBtn.textContent = '🔄 테스트 중...';
-            resultDiv.style.display = 'none';
-
-            try {
-                // API 연결 테스트 (텍스트 모델 사용 - 할당량 절약)
-                const testUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-                const response = await fetch(testUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: 'test' }] }]
-                    })
-                });
-
-                if (response.ok) {
-                    UI.showToast('✅ API 연결 성공!', 'success');
-                    resultDiv.style.display = 'block';
-                    resultDiv.innerHTML = '<p style="color: #10b981;">✅ 연결 성공! API가 정상적으로 작동합니다.</p>';
-                } else {
-                    // 에러 상세 내용 읽기
-                    const errorData = await response.json().catch(() => ({ error: { message: '알 수 없는 오류' } }));
-                    const errorMsg = errorData.error?.message || `HTTP ${response.status}`;
-                    throw new Error(`${errorMsg} (상태 코드: ${response.status})`);
-                }
-            } catch (error) {
-                UI.showToast('❌ API 연결 실패', 'error');
-                resultDiv.style.display = 'block';
-                resultDiv.innerHTML = `<p style="color: #ef4444;">❌ 연결 실패: ${error.message}</p>`;
-            } finally {
-                testBtn.disabled = false;
-                testBtn.textContent = '🔌 연결 테스트';
             }
         };
     },
@@ -1202,9 +1081,8 @@ const App = {
             const settings = await response.json();
 
             if (settings.apiType && settings.hasApiKey) {
-                const apiName = settings.apiType === 'ai_studio' ? 'AI Studio' : 'Vertex AI';
                 statusDisplay.innerHTML = `
-                    <p class="status-configured">✅ ${apiName} 연결됨</p>
+                    <p class="status-configured">✅ Vertex AI 연결됨</p>
                     <p class="status-detail">API 키가 설정되어 있습니다</p>
                     ${settings.projectId ? `<p class="status-detail">Project ID: ${settings.projectId}</p>` : ''}
                 `;
