@@ -519,8 +519,10 @@ const ScriptManager = {
 
         UI.showToast('✅ 이미지 수가 설정되었습니다', 'success');
 
-        // 등장인물 추출
-        CharacterManager.extractCharactersFromAllScripts(this.getAllScripts());
+        // ✅ Gemini가 이미 등장인물을 추출했으면 다시 추출하지 않음
+        if (CharacterManager.state.characters.length === 0) {
+            CharacterManager.extractCharactersFromAllScripts(this.getAllScripts());
+        }
 
         // 등장인물 생성 버튼 활성화
         const generateBtn = document.getElementById('generate-characters-btn');
