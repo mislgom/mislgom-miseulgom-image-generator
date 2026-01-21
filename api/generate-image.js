@@ -138,10 +138,10 @@ export default async function handler(request) {
     }
 }
 
-// AI Studio API 호출
+// AI Studio API 호출 (최신 안정화 이미지 모델)
 async function generateWithAIStudio(prompt, aspectRatio, apiKey) {
     const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`,
         {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
