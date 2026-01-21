@@ -5,7 +5,7 @@
 
 import { createUser } from '../lib/db.js';
 
-const ADMIN_USERNAME = 'mailgom';
+const ADMIN_USERNAME = 'mislgom';
 const ADMIN_PASSWORD = '1q2w3e4r5t@!';
 
 async function initAdmin() {

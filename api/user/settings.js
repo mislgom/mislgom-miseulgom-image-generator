@@ -7,26 +7,21 @@ import { saveUserApiSettings, getUserApiSettings } from '../../lib/db.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
 
-export default async function handler(request) {
-    const headers = {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-        'Content-Type': 'application/json',
-    };
+export default async function handler(req, res) {
+    // CORS 헤더
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-    if (request.method === 'OPTIONS') {
-        return new Response(null, { status: 200, headers });
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
     }
 
     // JWT 토큰 검증
-    const authHeader = request.headers.get('Authorization');
+    const authHeader = req.headers['authorization'] || req.headers['Authorization'];
 
     if (!authHeader?.startsWith('Bearer ')) {
-        return new Response(
-            JSON.stringify({ error: '로그인이 필요합니다' }),
-            { status: 401, headers }
-        );
+        return res.status(401).json({ error: '로그인이 필요합니다' });
     }
 
     const token = authHeader.substring(7);
@@ -35,25 +30,19 @@ export default async function handler(request) {
     try {
         decoded = jwt.verify(token, JWT_SECRET);
     } catch (error) {
-        return new Response(
-            JSON.stringify({ error: '인증이 만료되었습니다. 다시 로그인해주세요' }),
-            { status: 401, headers }
-        );
+        return res.status(401).json({ error: '인증이 만료되었습니다. 다시 로그인해주세요' });
     }
 
     try {
         // GET: API 설정 조회
-        if (request.method === 'GET') {
+        if (req.method === 'GET') {
             const settings = await getUserApiSettings(decoded.username);
 
-            return new Response(
-                JSON.stringify({
-                    apiType: settings.apiType,
-                    hasApiKey: !!settings.apiKey,
-                    projectId: settings.projectId
-                }),
-                { status: 200, headers }
-            );
+            return res.status(200).json({
+                apiType: settings.apiType,
+                hasApiKey: !!settings.apiKey,
+                projectId: settings.projectId
+            });
         }
 
         // POST: API 설정 저장 (Vertex AI 전용)
@@ -76,17 +65,10 @@ export default async function handler(request) {
             );
         }
 
-        return new Response(
-            JSON.stringify({ error: 'Method not allowed' }),
-            { status: 405, headers }
-        );
+        return res.status(405).json({ error: 'Method not allowed' });
 
     } catch (error) {
         console.error('Settings API error:', error);
-
-        return new Response(
-            JSON.stringify({ error: '설정 처리 중 오류가 발생했습니다' }),
-            { status: 500, headers }
-        );
+        return res.status(500).json({ error: '설정 처리 중 오류가 발생했습니다' });
     }
 }
