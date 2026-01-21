@@ -41,6 +41,9 @@ export default async function handler(req, res) {
     try {
         // 사용자 API 설정 가져오기
         const apiSettings = await getUserApiSettings(decoded.username);
+        
+        // 디버깅 로그
+        console.log(`🔍 API Settings for ${decoded.username}:`, JSON.stringify(apiSettings));
 
         // AI Studio는 API Key 필수, Vertex AI는 Service Account 방식이므로 검증 생략
         if (apiSettings.apiType === 'ai_studio' && !apiSettings.apiKey) {
@@ -65,7 +68,7 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: 'prompt is required' });
         }
 
-        console.log(`🎨 이미지 생성 요청: ${decoded.username} (${quota + 1}/100)`);
+        console.log(`🎨 이미지 생성 요청: ${decoded.username} (${quota + 1}/100), apiType: ${apiSettings.apiType}`);
 
         let imageUrl;
 
@@ -106,42 +109,54 @@ export default async function handler(req, res) {
     }
 }
 
-// AI Studio API 호출 (최신 안정화 이미지 모델)
+// AI Studio API 호출 (Gemini 2.5 Flash Image)
 async function generateWithAIStudio(prompt, aspectRatio, apiKey) {
+    console.log(`🚀 AI Studio API 호출 시작 - prompt: ${prompt.substring(0, 50)}...`);
+    
     const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`,
         {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: {
-                    responseModalities: ['image'],
-                    imageAspectRatio: aspectRatio
-                }
+                contents: [{
+                    parts: [{ text: prompt }]
+                }]
             })
         }
     );
 
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        if (response.status === 401) {
+        console.error('AI Studio API error response:', JSON.stringify(errorData));
+        
+        if (response.status === 400) {
+            throw new Error(`AI Studio API 요청 형식 오류: ${errorData.error?.message || 'Bad Request'}`);
+        } else if (response.status === 401) {
             throw new Error('API 키가 올바르지 않습니다. 설정에서 확인해주세요.');
         } else if (response.status === 429) {
             throw new Error('429 RESOURCE_EXHAUSTED');
-        } else if (errorData.error?.message?.includes('content')) {
-            throw new Error('이미지를 생성할 수 없는 내용입니다. 프롬프트를 수정해주세요.');
         }
         throw new Error(`AI Studio API error: ${response.status}`);
     }
 
     const data = await response.json();
+    
+    // 디버깅 로그
+    console.log('AI Studio response structure:', JSON.stringify(data).substring(0, 500));
+    
     const imagePart = data.candidates?.[0]?.content?.parts?.find(part => part.inlineData);
 
     if (!imagePart?.inlineData) {
-        throw new Error('No image generated');
+        // 텍스트 응답만 있는 경우
+        const textPart = data.candidates?.[0]?.content?.parts?.find(part => part.text);
+        if (textPart) {
+            console.log('AI Studio returned text instead of image:', textPart.text);
+        }
+        throw new Error('이미지가 생성되지 않았습니다. 프롬프트를 수정해보세요.');
     }
 
+    console.log('✅ AI Studio 이미지 생성 성공');
     return `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
 }
 
