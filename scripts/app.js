@@ -364,39 +364,6 @@ const App = {
             e.preventDefault();
         }, false);
 
-        // 이미지 생성 API 선택 라디오 버튼
-        const imageApiRadios = document.querySelectorAll('input[name="image-api"]');
-        const apiWarning = document.getElementById('api-selection-warning');
-
-        imageApiRadios.forEach(radio => {
-            radio.addEventListener('change', (e) => {
-                const selectedApi = e.target.value;
-                console.log(`✅ 이미지 생성 API 선택: ${selectedApi}`);
-
-                // 선택된 API를 localStorage에 저장
-                localStorage.setItem('selected_image_api', selectedApi);
-
-                // 경고 메시지 숨김
-                if (apiWarning) {
-                    apiWarning.style.display = 'none';
-                }
-
-                UI.showToast(`${selectedApi === 'ai_studio' ? 'AI Studio' : 'Vertex AI'} API가 선택되었습니다`, 'success');
-            });
-        });
-
-        // 페이지 로드 시 이전 선택 복원
-        const savedApi = localStorage.getItem('selected_image_api');
-        if (savedApi) {
-            const savedRadio = document.querySelector(`input[name="image-api"][value="${savedApi}"]`);
-            if (savedRadio) {
-                savedRadio.checked = true;
-                if (apiWarning) {
-                    apiWarning.style.display = 'none';
-                }
-            }
-        }
-
         console.log('✅ 이벤트 리스너 등록 완료');
     },
 
