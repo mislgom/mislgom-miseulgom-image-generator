@@ -14,8 +14,8 @@ const API = {
 
     // Rate Limit 보호 (Vertex AI)
     lastRequestTime: 0,
-    minDelay: 1000, // 최소 1초 (Vertex AI: 관대한 Rate Limit)
-    maxDelay: 2000, // 최대 2초
+    minDelay: 8000, // 최소 8초 (Vertex AI: 관대한 Rate Limit)
+    maxDelay: 12000, // 최대 12초
 
     // Gemini 대본 분석 API 설정
     GEMINI_API_KEY: '', // 사용자가 입력해야 함
