@@ -471,7 +471,7 @@ return await this._withConcurrency(() =>
                         ...(seed && { seed }),
                         ...(referenceImages && referenceImages.length > 0 && { referenceImages })
                     })
-                }));
+                });
 
                 // 응답 객체 저장 (Retry-After 파싱용)
                 if (setResponse) setResponse(response);
