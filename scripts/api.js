@@ -511,7 +511,6 @@ return await this._withConcurrency(() =>
                 return data.imageUrl;
             });
         });
-    },
 
     /**
      * 이미지 수정 (text-to-image 방식)
