@@ -1,9 +1,15 @@
 /**
  * 미슬곰 이미지 자동 생성기 v2.1 - API 통신 모듈
  * 백엔드 API와 통신 (데모 모드 포함)
- * 
+ *
  * v2.0 - 에러별 재시도 정책 + 동시성 제한 + Retry-After 지원
  * v2.1 - 호출 경로 통일 + 딜레이 중복 제거 + 에러 정보 보존 + 메시지 정교화
+ *
+ * ✅ FIX(2026-01-22):
+ * - generateImageLocal 아래에 남아있던 "중복 fetch/if(response...)" 블록 제거 (문법 오류 원인)
+ * - 동시성 처리: _withConcurrency 를 단일 진입점으로 사용, _executeWithQueue 는 호환용 래퍼로 유지
+ * - _retryWithBackoff: 콜백이 setter를 받을 수도/안 받을 수도 있게 유지 (기존 호출 호환)
+ * - minRequestInterval: 2000 → 4000 (공식 권장 3초 + 안전 마진)
  */
 
 const API = {
@@ -17,30 +23,30 @@ const API = {
 
     // Rate Limit 보호 (Vertex AI) - 첫 요청 간격용
     lastRequestTime: 0,
-    minRequestInterval: 2000, // 연속 요청 최소 간격 2초 (백오프와 별개)
+    minRequestInterval: 4000, // ✅ 4초 (공식 권장 3초 + 안전 마진)
 
     // ✅ v2.0: 동시성 제한 (실사용)
-maxConcurrent: 2,
-currentRequests: 0,
-requestQueue: [],
+    maxConcurrent: 2,
+    currentRequests: 0,
+    requestQueue: [],
 
-// 동시에 maxConcurrent개까지만 실행, 나머지는 큐 대기
-async _withConcurrency(taskFn) {
-    if (this.currentRequests >= this.maxConcurrent) {
-        await new Promise(resolve => this.requestQueue.push(resolve));
-    }
+    // 동시에 maxConcurrent개까지만 실행, 나머지는 큐 대기
+    async _withConcurrency(taskFn) {
+        if (this.currentRequests >= this.maxConcurrent) {
+            await new Promise((resolve) => this.requestQueue.push(resolve));
+        }
 
-    this.currentRequests++;
+        this.currentRequests++;
 
-    try {
-        return await taskFn();
-    } finally {
-        this.currentRequests--;
+        try {
+            return await taskFn();
+        } finally {
+            this.currentRequests--;
 
-        const next = this.requestQueue.shift();
-        if (next) next();
-    }
-},
+            const next = this.requestQueue.shift();
+            if (next) next();
+        }
+    },
 
     // ✅ v2.1: 데모 모드 플래그
     demoMode: false,
@@ -62,13 +68,13 @@ async _withConcurrency(taskFn) {
         console.log('📥 이미지 API 설정 로드:', {
             type: this.IMAGE_API_TYPE,
             hasKey: !!this.IMAGE_API_KEY,
-            hasProjectId: !!this.IMAGE_PROJECT_ID
+            hasProjectId: !!this.IMAGE_PROJECT_ID,
         });
 
         return {
             apiType: this.IMAGE_API_TYPE,
             apiKey: this.IMAGE_API_KEY,
-            projectId: this.IMAGE_PROJECT_ID
+            projectId: this.IMAGE_PROJECT_ID,
         };
     },
 
@@ -77,7 +83,6 @@ async _withConcurrency(taskFn) {
      */
     async saveImageApiSettings(apiType, apiKey, projectId = null) {
         const token = localStorage.getItem('auth_token');
-
         if (!token) {
             throw new Error('로그인이 필요합니다');
         }
@@ -86,9 +91,9 @@ async _withConcurrency(taskFn) {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
+                Authorization: `Bearer ${token}`,
             },
-            body: JSON.stringify({ apiType, apiKey, projectId })
+            body: JSON.stringify({ apiType, apiKey, projectId }),
         });
 
         if (!response.ok) {
@@ -97,7 +102,6 @@ async _withConcurrency(taskFn) {
         }
 
         console.log('💾 API 설정 저장 완료 (서버)');
-
         return await response.json();
     },
 
@@ -121,9 +125,7 @@ async _withConcurrency(taskFn) {
         try {
             const response = await fetch(`${this.baseURL}/health`, {
                 method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
+                headers: { 'Content-Type': 'application/json' },
             });
 
             if (response.ok) {
@@ -131,9 +133,7 @@ async _withConcurrency(taskFn) {
                 console.log('✅ 백엔드 연결:', data);
                 return true;
             }
-
             return false;
-
         } catch (error) {
             console.warn('⚠️ 백엔드 연결 실패:', error.message);
             return false;
@@ -156,56 +156,40 @@ async _withConcurrency(taskFn) {
         try {
             const response = await fetch(`${this.baseURL}/api/analyze-script`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ text: scriptText })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: scriptText }),
             });
 
             if (!response.ok) {
                 throw new Error('대본 분석 실패');
             }
 
-            const data = await response.json();
-            return data;
-
+            return await response.json();
         } catch (error) {
             console.warn('⚠️ API 호출 실패, 데모 데이터 사용');
-            
+
             return {
                 characters: [
-                    {
-                        name: '윤해린',
-                        nameEn: 'Yoon Haerin',
-                        description: '20대 초반 여성, 긴 검은 머리, 우아한 한복'
-                    },
-                    {
-                        name: '백도식',
-                        nameEn: 'Baek Dosik',
-                        description: '30대 남성, 짧은 검은 머리, 전통 한복'
-                    }
+                    { name: '윤해린', nameEn: 'Yoon Haerin', description: '20대 초반 여성, 긴 검은 머리, 우아한 한복' },
+                    { name: '백도식', nameEn: 'Baek Dosik', description: '30대 남성, 짧은 검은 머리, 전통 한복' },
                 ],
-                sceneCount: 30
+                sceneCount: 30,
             };
         }
     },
 
     // ✅ v2.1: 이미지 생성 (generateImageLocal로 위임)
     async generateImage(params) {
-        // 데모 모드일 때만 데모 이미지 반환
         if (this.demoMode) {
             console.log('🎮 데모 모드: 데모 이미지 반환');
             const demoImages = [
                 'https://images.unsplash.com/photo-1551847812-36c8db2e6936?w=800&h=450&fit=crop',
                 'https://images.unsplash.com/photo-1547891654-e66ed7ebb968?w=800&h=450&fit=crop',
-                'https://images.unsplash.com/photo-1551847812-9dcf1acbf8b4?w=800&h=450&fit=crop'
+                'https://images.unsplash.com/photo-1551847812-9dcf1acbf8b4?w=800&h=450&fit=crop',
             ];
-            return {
-                imageUrl: demoImages[Math.floor(Math.random() * demoImages.length)]
-            };
+            return { imageUrl: demoImages[Math.floor(Math.random() * demoImages.length)] };
         }
 
-        // 운영 모드: generateImageLocal로 위임
         const imageUrl = await this.generateImageLocal(params);
         return { imageUrl };
     },
@@ -215,22 +199,18 @@ async _withConcurrency(taskFn) {
         try {
             const response = await fetch(`${this.baseURL}/api/projects/create`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     name: name || `미슬곰_${Date.now()}`,
-                    style: style || 'realistic'
-                })
+                    style: style || 'realistic',
+                }),
             });
 
             if (!response.ok) {
                 throw new Error('프로젝트 생성 실패');
             }
 
-            const data = await response.json();
-            return data;
-
+            return await response.json();
         } catch (error) {
             throw new Error(this.handleError(error));
         }
@@ -242,7 +222,6 @@ async _withConcurrency(taskFn) {
      * ✅ v2.1: 재시도 불가 에러인지 확인
      */
     _isNonRetryableError(status, errorMessage) {
-        // 400 계열: 특정 키워드 포함 시 재시도 금지
         if (status === 400) {
             const msg = (errorMessage || '').toLowerCase();
             const nonRetryableKeywords = [
@@ -251,12 +230,11 @@ async _withConcurrency(taskFn) {
                 'does not exist',
                 'invalid request',
                 'bad request',
-                'invalid argument'
+                'invalid argument',
             ];
-            return nonRetryableKeywords.some(keyword => msg.includes(keyword));
+            return nonRetryableKeywords.some((keyword) => msg.includes(keyword));
         }
 
-        // 401, 403: 인증/권한 오류 - 재시도 금지
         if (status === 401 || status === 403) {
             return true;
         }
@@ -271,23 +249,21 @@ async _withConcurrency(taskFn) {
         const retryAfter = response.headers.get('retry-after');
         if (!retryAfter) return null;
 
-        // 숫자인 경우 (초 단위)
         const seconds = parseInt(retryAfter, 10);
         if (!isNaN(seconds)) {
             console.log(`📋 Retry-After 헤더 감지: ${seconds}초`);
             return seconds * 1000;
         }
 
-        // HTTP date 형식인 경우
         try {
             const retryDate = new Date(retryAfter);
             const waitTime = retryDate.getTime() - Date.now();
             if (waitTime > 0) {
-                console.log(`📋 Retry-After 헤더 감지 (date): ${(waitTime/1000).toFixed(1)}초`);
+                console.log(`📋 Retry-After 헤더 감지 (date): ${(waitTime / 1000).toFixed(1)}초`);
                 return waitTime;
             }
         } catch (e) {
-            // 파싱 실패 - 무시
+            // ignore
         }
 
         return null;
@@ -297,17 +273,15 @@ async _withConcurrency(taskFn) {
      * ✅ v2.1: status별 사용자 메시지 생성
      */
     _getFinalErrorMessage(status, originalMessage) {
-        if (status === 429) {
-            return '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.';
-        }
-        if (status >= 500 && status < 600) {
-            return '서버에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해주세요.';
-        }
-        if (originalMessage && (
-            originalMessage.includes('Failed to fetch') ||
-            originalMessage.includes('network') ||
-            originalMessage.includes('NetworkError')
-        )) {
+        if (status === 429) return '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.';
+        if (status >= 500 && status < 600) return '서버에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해주세요.';
+
+        if (
+            originalMessage &&
+            (originalMessage.includes('Failed to fetch') ||
+                originalMessage.includes('network') ||
+                originalMessage.includes('NetworkError'))
+        ) {
             return '네트워크 연결을 확인해주세요.';
         }
         return originalMessage || '이미지 생성에 실패했습니다.';
@@ -319,6 +293,10 @@ async _withConcurrency(taskFn) {
      * - Retry-After 헤더 우선
      * - 백오프: 8초 → 16초 → 32초 + 지터(±2초)
      * - 에러 정보 보존
+     *
+     * ⚠️ func는 아래 두 형태 모두 허용(호환):
+     *  - async () => { ... }
+     *  - async (setResponse) => { setResponse(response); ... }
      */
     async _retryWithBackoff(func, maxRetries = 3) {
         let lastError = null;
@@ -333,19 +311,17 @@ async _withConcurrency(taskFn) {
                 });
             } catch (error) {
                 lastError = error;
-                lastStatus = error.status || (lastResponse?.status);
+                lastStatus = error.status || lastResponse?.status;
                 lastOriginalMessage = error.originalMessage || error.message;
 
                 const errorStr = error.message || error.toString();
 
-                // ✅ 재시도 불가 에러 체크
                 if (this._isNonRetryableError(lastStatus, errorStr)) {
                     console.error(`❌ 재시도 불가 에러 (${lastStatus}): ${errorStr}`);
                     throw error;
                 }
 
-                // 429 또는 5xx 또는 네트워크 에러만 재시도
-                const isRetryable = 
+                const isRetryable =
                     lastStatus === 429 ||
                     error.code === 'RESOURCE_EXHAUSTED' ||
                     (lastStatus >= 500 && lastStatus < 600) ||
@@ -353,15 +329,11 @@ async _withConcurrency(taskFn) {
                     errorStr.includes('network') ||
                     errorStr.includes('NetworkError');
 
-                if (!isRetryable) {
-                    throw error;
-                }
+                if (!isRetryable) throw error;
 
-                // 마지막 시도였으면 에러 throw
                 if (attempt === maxRetries - 1) {
                     console.error(`❌ 최대 재시도 횟수(${maxRetries}회) 초과`);
-                    
-                    // ✅ v2.1: status별 메시지 분기 + 원본 정보 보존
+
                     const finalError = new Error(this._getFinalErrorMessage(lastStatus, lastOriginalMessage));
                     finalError.status = lastStatus;
                     finalError.originalMessage = lastOriginalMessage;
@@ -369,22 +341,22 @@ async _withConcurrency(taskFn) {
                     throw finalError;
                 }
 
-                // ✅ Retry-After 헤더 우선 확인
                 let waitTime = null;
                 if (lastResponse) {
                     waitTime = this._parseRetryAfter(lastResponse);
                 }
 
-                // Retry-After가 없으면 지수 백오프 사용: 8초 → 16초 → 32초
                 if (!waitTime) {
                     const baseDelay = 8000;
                     const exponentialDelay = Math.pow(2, attempt) * baseDelay;
-                    const jitter = (Math.random() * 4000) - 2000; // ✅ v2.1: ±2초 지터
-                    waitTime = Math.max(exponentialDelay + jitter, baseDelay); // 최소 8초 보장
+                    const jitter = Math.random() * 4000 - 2000; // ±2s
+                    waitTime = Math.max(exponentialDelay + jitter, baseDelay);
                 }
 
-                console.warn(`⚠️ 재시도 대기. ${(waitTime/1000).toFixed(1)}초 후 재시도 (${attempt + 1}/${maxRetries})...`);
-                await new Promise(resolve => setTimeout(resolve, waitTime));
+                console.warn(
+                    `⚠️ 재시도 대기. ${(waitTime / 1000).toFixed(1)}초 후 재시도 (${attempt + 1}/${maxRetries})...`
+                );
+                await new Promise((resolve) => setTimeout(resolve, waitTime));
             }
         }
 
@@ -392,102 +364,87 @@ async _withConcurrency(taskFn) {
     },
 
     /**
-     * ✅ v2.0: 동시성 제한을 위한 큐 처리
+     * ✅ v2.0: (호환용) 큐 처리 API
+     * - 기존 코드가 _executeWithQueue를 호출해도 동작하도록 유지
+     * - 내부는 _withConcurrency로 단일화
      */
     async _executeWithQueue(func) {
-        // 동시 요청 수 체크
-        if (this.currentRequests >= this.maxConcurrent) {
-            console.log(`⏳ 동시성 제한 (${this.currentRequests}/${this.maxConcurrent}), 큐 대기 중...`);
-            
-            await new Promise(resolve => {
-                this.requestQueue.push(resolve);
-            });
-        }
-
-        this.currentRequests++;
-        console.log(`🔄 요청 시작 (현재 ${this.currentRequests}/${this.maxConcurrent})`);
-
-        try {
-            return await func();
-        } finally {
-            this.currentRequests--;
-            console.log(`✅ 요청 완료 (현재 ${this.currentRequests}/${this.maxConcurrent})`);
-
-            // 큐에서 대기 중인 요청 실행
-            if (this.requestQueue.length > 0) {
-                const next = this.requestQueue.shift();
-                next();
-            }
-        }
+        return await this._withConcurrency(func);
     },
 
     /**
-     * ✅ v2.1: 연속 요청 간격 보장 (최소 2초)
-     * - 백오프와 별개로, 연속 요청 시 최소 간격만 보장
+     * ✅ v2.1: 연속 요청 간격 보장 (최소 4초)
      */
     async _ensureMinInterval() {
         const elapsed = Date.now() - this.lastRequestTime;
         if (elapsed < this.minRequestInterval) {
             const waitTime = this.minRequestInterval - elapsed;
-            console.log(`⏳ 요청 간격 보장: ${(waitTime/1000).toFixed(1)}초 대기...`);
-            await new Promise(resolve => setTimeout(resolve, waitTime));
+            console.log(`⏳ 요청 간격 보장: ${(waitTime / 1000).toFixed(1)}초 대기...`);
+            await new Promise((resolve) => setTimeout(resolve, waitTime));
         }
         this.lastRequestTime = Date.now();
     },
 
-Copy/**
- * ✅ v2.1: Google Image Generation API로 이미지 생성 (동시성/재시도 적용)
- */
-async generateImageLocal(params) {
-    const { prompt, aspectRatio = '1:1', seed, referenceImages } = params;
+    /**
+     * ✅ v2.1: Google Image Generation API로 이미지 생성 (동시성/재시도 적용)
+     */
+    async generateImageLocal(params) {
+        const { prompt, aspectRatio = '1:1', seed, referenceImages } = params;
 
-    const token = localStorage.getItem('auth_token');
-    if (!token) {
-        throw new Error('로그인이 필요합니다');
-    }
+        const token = localStorage.getItem('auth_token');
+        if (!token) {
+            throw new Error('로그인이 필요합니다');
+        }
 
-    console.log('🎨 이미지 생성 요청:', {
-        prompt: prompt.substring(0, 50) + '...',
-        aspectRatio,
-        apiType: 'vertex_ai'
-    });
+        console.log('🎨 이미지 생성 요청:', {
+            prompt: (prompt || '').substring(0, 50) + '...',
+            aspectRatio,
+            apiType: 'vertex_ai',
+        });
 
-    return await this._withConcurrency(() =>
-        this._retryWithBackoff(async () => {
-            // 연속 요청 최소 간격 보장
-            await this._ensureMinInterval();
+        return await this._withConcurrency(() =>
+            this._retryWithBackoff(async (setResponse) => {
+                await this._ensureMinInterval();
 
-            const response = await fetch('/api/generate-image', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    prompt,
-                    aspectRatio,
-                    ...(seed && { seed }),
-                    ...(referenceImages && referenceImages.length > 0 && { referenceImages })
-                })
-            });
+                const response = await fetch('/api/generate-image', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({
+                        prompt,
+                        aspectRatio,
+                        ...(seed ? { seed } : {}),
+                        ...(Array.isArray(referenceImages) && referenceImages.length > 0 ? { referenceImages } : {}),
+                    }),
+                });
 
-            // 401 에러 처리 (로그인 만료)
-            if (response.status === 401) {
-                localStorage.removeItem('auth_token');
-                window.location.href = '/login.html';
-                throw new Error('로그인이 만료되었습니다');
-            }
+                // ✅ Retry-After 파싱용 response 보존 (타입 체크)
+                if (typeof setResponse === 'function') setResponse(response);
 
-            if (!response.ok) {
-                const text = await response.text();
-                throw new Error(text || `HTTP ${response.status}`);
-            }
+                // 401: 로그인 만료
+                if (response.status === 401) {
+                    localStorage.removeItem('auth_token');
+                    window.location.href = '/login.html';
+                    const error = new Error('로그인이 만료되었습니다');
+                    error.status = 401;
+                    throw error;
+                }
 
-            const data = await response.json();
-            return data.imageUrl;
-        })
-    );
-},
+                if (!response.ok) {
+                    const text = await response.text().catch(() => '');
+                    const error = new Error(text || `HTTP ${response.status}`);
+                    error.status = response.status;
+                    throw error;
+                }
+
+                const data = await response.json();
+                console.log('✅ 이미지 생성 완료');
+                return data.imageUrl;
+            })
+        );
+    },
 
     /**
      * 이미지 수정 (text-to-image 방식)
@@ -495,32 +452,35 @@ async generateImageLocal(params) {
     async editImageLocal(originalPrompt, editPrompt, options = {}) {
         const { aspectRatio = '1:1', seed, keepSeed, imageBase64 } = options;
 
-        console.log('🔄 이미지 수정 (text-to-image 방식):', editPrompt ? editPrompt.substring(0, 30) + '...' : '(프롬프트 유지)');
+        console.log(
+            '🔄 이미지 수정 (text-to-image 방식):',
+            editPrompt ? editPrompt.substring(0, 30) + '...' : '(프롬프트 유지)'
+        );
 
-        const fullPrompt = editPrompt
-            ? `${originalPrompt}. Additional modification: ${editPrompt}`
-            : originalPrompt;
+        const fullPrompt = editPrompt ? `${originalPrompt}. Additional modification: ${editPrompt}` : originalPrompt;
 
         let referenceImages = [];
         if (imageBase64) {
-            referenceImages = [{
-                referenceId: 1,
-                imageBase64: imageBase64,
-                description: 'maintain consistency with original image'
-            }];
+            referenceImages = [
+                {
+                    referenceId: 1,
+                    imageBase64: imageBase64,
+                    description: 'maintain consistency with original image',
+                },
+            ];
             console.log('📷 기존 이미지를 참조 이미지로 전달 (일관성 유지)');
         }
 
         return await this.generateImageLocal({
             prompt: fullPrompt,
-            aspectRatio: aspectRatio,
-            ...(keepSeed && seed && { seed: seed }),
-            ...(referenceImages.length > 0 && { referenceImages })
+            aspectRatio,
+            ...(keepSeed && seed ? { seed } : {}),
+            ...(referenceImages.length > 0 ? { referenceImages } : {}),
         });
     },
 
     // ========== Gemini API (대본 분석) ==========
-    
+
     /**
      * Gemini API로 대본 분석
      */
@@ -555,7 +515,7 @@ async generateImageLocal(params) {
 - **meiji** (메이지시대, 1868-1912): "文明開化", "洋服", "ガス灯", "人力車", "明治" 등
 - **taisho** (다이쇼시대, 1912-1926): "大正", "モダン", "カフェー", "洋館" 등
 - **showa** (쇼와시대, 1926-1989): "昭和", "戦争", "高度成長" 등
-- **modern** (현代, 1989-현재): "携帯", "パソコン", "会社", "マンション", "カフェ" 등
+- **modern** (現代, 1989-현재): "携帯", "パソコン", "会社", "マンション", "カフェ" 등
 
 **공통:**
 - **future** (미래/SF): "로봇", "우주", "사이버", "AI", "ロボット", "宇宙" 등
@@ -748,7 +708,7 @@ ${scriptsJson}
      */
     analyzeScriptRuleBased(scripts) {
         console.log('📝 규칙 기반 대본 분석 시작 (Gemini API 없음)');
-        
+
         const characters = [
             {
                 name: '주인공',
