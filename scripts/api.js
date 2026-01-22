@@ -19,10 +19,28 @@ const API = {
     lastRequestTime: 0,
     minRequestInterval: 2000, // 연속 요청 최소 간격 2초 (백오프와 별개)
 
-    // ✅ v2.0: 동시성 제한
-    maxConcurrent: 2,
-    currentRequests: 0,
-    requestQueue: [],
+    // ✅ v2.0: 동시성 제한 (실사용)
+maxConcurrent: 2,
+currentRequests: 0,
+requestQueue: [],
+
+// 동시에 maxConcurrent개까지만 실행, 나머지는 큐 대기
+async _withConcurrency(taskFn) {
+    if (this.currentRequests >= this.maxConcurrent) {
+        await new Promise(resolve => this.requestQueue.push(resolve));
+    }
+
+    this.currentRequests++;
+
+    try {
+        return await taskFn();
+    } finally {
+        this.currentRequests--;
+
+        const next = this.requestQueue.shift();
+        if (next) next();
+    }
+},
 
     // ✅ v2.1: 데모 모드 플래그
     demoMode: false,
@@ -435,25 +453,25 @@ const API = {
             apiType: 'vertex_ai'
         });
 
-        // ✅ 동시성 제한 + 재시도 로직
-        return await this._executeWithQueue(async () => {
-            return await this._retryWithBackoff(async (setResponse) => {
-                // ✅ v2.1: 연속 요청 간격만 보장 (백오프와 중복 제거)
-                await this._ensureMinInterval();
+// ✅ 동시성 제한 + 재시도 로직
+return await this._withConcurrency(() =>
+    this._retryWithBackoff(async (setResponse) => {
+        // 연속 요청 최소 간격 보장
+        await this._ensureMinInterval();
 
-                const response = await fetch('/api/generate-image', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
+        const response = await fetch('/api/generate-image', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
                     body: JSON.stringify({
                         prompt,
                         aspectRatio,
                         ...(seed && { seed }),
                         ...(referenceImages && referenceImages.length > 0 && { referenceImages })
                     })
-                });
+                }));
 
                 // 응답 객체 저장 (Retry-After 파싱용)
                 if (setResponse) setResponse(response);
