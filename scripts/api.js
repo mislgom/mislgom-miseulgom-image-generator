@@ -509,8 +509,9 @@ return await this._withConcurrency(() =>
                 console.log('✅ 이미지 생성 완료');
 
                 return data.imageUrl;
-            });
-        });
+            })
+        );
+    },
 
     /**
      * 이미지 수정 (text-to-image 방식)
