@@ -1,6 +1,7 @@
 /**
- * 미슬곰 이미지 자동 생성기 v1.0 - 대본 관리 모듈
+ * 미슬곰 이미지 자동 생성기 v1.1 - 대본 관리 모듈
  * 파트별 대본 입력, 파트 수 선택, 탭 전환, AI 분석
+ * v1.1: 분석 결과 저장/복원 개선, API 중복 호출 방지
  */
 
 const ScriptManager = {
@@ -12,7 +13,8 @@ const ScriptManager = {
             intro: ''
         },
         analysisResult: null,
-        isAnalyzed: false
+        isAnalyzed: false,
+        savedCharacters: null  // ✅ 등장인물 데이터 저장용
     },
 
     // 초기화
@@ -59,10 +61,14 @@ const ScriptManager = {
             textarea.addEventListener('input', (e) => {
                 this.updateCharCount(e.target);
                 this.saveScript(e.target);
+                // ✅ 대본 수정 시 분석 상태 초기화
+                this.state.isAnalyzed = false;
+                this.state.analysisResult = null;
+                this.state.savedCharacters = null;
             });
         });
 
-        // 종합 대본 분석 버튼
+        // 종합 대본 분석 버튼 - ✅ 여기서만 등록 (app.js에서 중복 등록 제거 필요)
         const analyzeBtn = document.getElementById('analyze-script-btn');
         if (analyzeBtn) {
             analyzeBtn.addEventListener('click', () => {
@@ -164,6 +170,11 @@ const ScriptManager = {
                 this.updateCharCount(textarea);
                 this.saveScript(textarea);
 
+                // ✅ 대본 변경 시 분석 상태 초기화
+                this.state.isAnalyzed = false;
+                this.state.analysisResult = null;
+                this.state.savedCharacters = null;
+
                 UI.showToast(`✅ ${part === 'intro' ? 'Intro' : 'Part ' + part}에 대본이 입력되었습니다`, 'success');
 
                 console.log(`📄 파트별 업로드 완료: ${part}`);
@@ -246,6 +257,10 @@ const ScriptManager = {
                 textarea.addEventListener('input', (e) => {
                     this.updateCharCount(e.target);
                     this.saveScript(e.target);
+                    // ✅ 대본 수정 시 분석 상태 초기화
+                    this.state.isAnalyzed = false;
+                    this.state.analysisResult = null;
+                    this.state.savedCharacters = null;
                 });
             }
 
@@ -309,7 +324,7 @@ const ScriptManager = {
         this.state.scripts[part] = textarea.value;
     },
 
-    // 전체 대본 분석
+    // ✅ 전체 대본 분석 - v1.1 (저장된 결과 재사용)
     async analyzeAllScripts() {
         try {
             // 입력된 대본 확인
@@ -317,6 +332,28 @@ const ScriptManager = {
             
             if (Object.keys(scripts).length === 0) {
                 UI.showToast('대본을 입력해주세요', 'error');
+                return;
+            }
+
+            // ✅ 이미 분석된 상태면 저장된 결과로 모달만 표시 (API 재호출 안함)
+            if (this.state.isAnalyzed && this.state.analysisResult) {
+                console.log('📊 저장된 분석 결과 사용 (API 재호출 없음)');
+                
+                // 저장된 등장인물 데이터 복원
+                if (this.state.savedCharacters && this.state.savedCharacters.length > 0) {
+                    CharacterManager.state.characters = this.state.savedCharacters;
+                    CharacterManager.renderCharacters();
+                    
+                    // 등장인물 생성 버튼 활성화
+                    const generateBtn = document.getElementById('generate-characters-btn');
+                    if (generateBtn) {
+                        generateBtn.disabled = false;
+                    }
+                }
+                
+                // 저장된 결과로 모달 표시
+                this.showAnalysisModal(this.state.analysisResult);
+                UI.showToast('저장된 분석 결과를 불러왔습니다', 'info');
                 return;
             }
 
@@ -328,6 +365,9 @@ const ScriptManager = {
 
             this.state.analysisResult = analysisResult;
             this.state.isAnalyzed = true;
+            
+            // ✅ 등장인물 데이터도 저장
+            this.state.savedCharacters = [...CharacterManager.state.characters];
 
             UI.hideLoading();
 
@@ -557,6 +597,11 @@ const ScriptManager = {
                 }
             }
 
+            // ✅ 파일 업로드 시 분석 상태 초기화
+            this.state.isAnalyzed = false;
+            this.state.analysisResult = null;
+            this.state.savedCharacters = null;
+
             UI.showToast(`✅ ${parts.length}개 파트로 자동 분할되었습니다`, 'success');
 
             console.log('📄 파일 업로드 완료:', {
@@ -681,24 +726,26 @@ const ScriptManager = {
         return Object.keys(scripts).length > 0;
     },
 
-    // 상태 저장
+    // ✅ 상태 저장 - v1.1 (등장인물 데이터 포함)
     saveState() {
         return {
             partCount: this.state.partCount,
             currentPart: this.state.currentPart,
             scripts: this.getAllScripts(),
             analysisResult: this.state.analysisResult,
-            isAnalyzed: this.state.isAnalyzed
+            isAnalyzed: this.state.isAnalyzed,
+            savedCharacters: this.state.savedCharacters || CharacterManager.state.characters  // ✅ 등장인물 저장
         };
     },
 
-    // 상태 복원
+    // ✅ 상태 복원 - v1.1 (등장인물 데이터 복원)
     loadState(state) {
         if (state) {
             this.state.partCount = state.partCount || 5;
             this.state.currentPart = state.currentPart || 'intro';
             this.state.analysisResult = state.analysisResult;
             this.state.isAnalyzed = state.isAnalyzed || false;
+            this.state.savedCharacters = state.savedCharacters || null;  // ✅ 등장인물 복원
 
             // 파트 수 설정
             const partCountSelect = document.getElementById('part-count');
@@ -721,16 +768,39 @@ const ScriptManager = {
                 }
             }
 
+            // ✅ 등장인물 데이터 복원
+            if (this.state.savedCharacters && this.state.savedCharacters.length > 0) {
+                CharacterManager.state.characters = this.state.savedCharacters;
+                CharacterManager.renderCharacters();
+                console.log(`👥 저장된 등장인물 ${this.state.savedCharacters.length}명 복원됨`);
+            }
+
             // 분석 완료 상태면 버튼 활성화
             if (this.state.isAnalyzed) {
                 const generateBtn = document.getElementById('generate-characters-btn');
                 if (generateBtn) {
                     generateBtn.disabled = false;
                 }
+                console.log('✅ 분석 완료 상태 복원됨 - 등장인물 생성 버튼 활성화');
             }
         }
     },
 
+    // ✅ 분석 상태 초기화 (새 대본 분석 시 사용)
+    resetAnalysis() {
+        this.state.isAnalyzed = false;
+        this.state.analysisResult = null;
+        this.state.savedCharacters = null;
+        CharacterManager.state.characters = [];
+        CharacterManager.renderCharacters();
+        
+        const generateBtn = document.getElementById('generate-characters-btn');
+        if (generateBtn) {
+            generateBtn.disabled = true;
+        }
+        
+        console.log('🔄 분석 상태 초기화됨');
+    }
 };
 
 // 전역 함수로 노출
