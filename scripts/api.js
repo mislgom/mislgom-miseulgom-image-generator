@@ -225,8 +225,8 @@ const API = {
      * @returns {Object} - { min, max } 딜레이 범위 (밀리초)
      */
     getDelayForApi() {
-        // Vertex AI: Rate Limit 보호 (8-12초)
-        return { min: 8000, max: 12000 };
+        // Vertex AI: Rate Limit 보호 (this.minDelay ~ this.maxDelay)
+        return { min: this.minDelay, max: this.maxDelay };
     },
 
     /**
@@ -280,10 +280,12 @@ const API = {
      * @param {Object} params - 생성 파라미터
      * @param {string} params.prompt - 프롬프트
      * @param {string} params.aspectRatio - 비율 (기본: '1:1')
+     * @param {number} params.seed - 시드값 (선택)
+     * @param {Array} params.referenceImages - 참조 이미지 배열 (선택)
      * @returns {Promise<string>} - 이미지 Data URL
      */
     async generateImageLocal(params) {
-        const { prompt, aspectRatio = '1:1' } = params;
+        const { prompt, aspectRatio = '1:1', seed, referenceImages } = params;
 
         // JWT 토큰 가져오기
         const token = localStorage.getItem('auth_token');
@@ -309,7 +311,12 @@ const API = {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify({ prompt, aspectRatio })
+                body: JSON.stringify({
+                    prompt,
+                    aspectRatio,
+                    ...(seed && { seed }),
+                    ...(referenceImages && referenceImages.length > 0 && { referenceImages })
+                })
             });
 
             if (response.status === 401) {
@@ -350,18 +357,25 @@ const API = {
 
 
     /**
-     * 이미지 수정 (img2img) - Google API는 지원하지 않음
-     * @deprecated Google Gemini는 img2img를 지원하지 않습니다.
+     * 이미지 수정 (text-to-image 방식) - 기존 프롬프트 + 수정 요청 합성
+     * @param {string} originalPrompt - 기존 이미지 생성 프롬프트
+     * @param {string} editPrompt - 수정 요청 텍스트
+     * @param {Object} options - 추가 옵션 { aspectRatio, seed, keepSeed }
+     * @returns {Promise<string>} - 새 이미지 Data URL
      */
-    async editImageLocal(imageUrl, editPrompt) {
-        console.warn('⚠️ 이미지 수정 기능은 현재 지원하지 않습니다.');
+    async editImageLocal(originalPrompt, editPrompt, options = {}) {
+        console.log('🔄 이미지 수정 (text-to-image 방식):', editPrompt.substring(0, 30) + '...');
 
-        // 새로운 이미지를 생성하는 것으로 대체
-        const fullPrompt = `Based on the following description, create a new image: ${editPrompt}`;
+        // 기존 프롬프트 + 수정 요청 합성
+        const fullPrompt = editPrompt
+            ? `${originalPrompt}. Additional modification: ${editPrompt}`
+            : originalPrompt;
 
         return await this.generateImageLocal({
             prompt: fullPrompt,
-            aspectRatio: '1:1'
+            aspectRatio: options.aspectRatio || '1:1',
+            // keepSeed가 true이고 seed가 있으면 기존 시드 유지
+            ...(options.keepSeed && options.seed && { seed: options.seed })
         });
     },
 
@@ -720,9 +734,12 @@ ${scriptsJson}
         try {
             const { scriptText, characters, style, era } = params;
 
-            // 등장인물 정보 문자열로 변환
+            // 등장인물 정보 문자열로 변환 (descriptionEn fallback 적용)
             const characterInfo = characters && characters.length > 0
-                ? characters.map(c => `${c.nameEn}: ${c.descriptionEn}`).join('\n')
+                ? characters.map(c => {
+                    const desc = c.descriptionEn || c.description || c.promptEn || 'character';
+                    return `${c.nameEn || c.name}: ${desc}`;
+                }).join('\n')
                 : '등장인물 정보 없음';
 
             const systemInstruction = {

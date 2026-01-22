@@ -113,20 +113,32 @@ const CharacterManager = {
 
                     // ✅ 디버깅: 스타일이 prompt.en에 실제로 들어가는지 확인
                     console.log(`🎨 [${character.name}] 스타일: ${character.style}, 인종: ${character.ethnicity}, 프롬프트:`, prompt.en.substring(0, 200));
-                    
-                    // 이미지 생성 (API 호출)
-                    const imageUrl = await this.generateCharacterImage(prompt);
-                    
-                    // 캐릭터 업데이트
+
+                    // ✅ 시드 생성 (캐릭터 일관성을 위해)
+                    const seed = Math.floor(Math.random() * 2147483647);
+
+                    // 이미지 생성 (API 호출) - seed 전달
+                    const imageUrl = await this.generateCharacterImage(prompt, seed);
+
+                    // ✅ imageBase64 추출 (data:image/png;base64, 접두사 제거)
+                    const imageBase64 = imageUrl.startsWith('data:image/')
+                        ? imageUrl.replace(/^data:image\/\w+;base64,/, '')
+                        : null;
+
+                    // 캐릭터 업데이트 (확장된 데이터)
                     character.imageUrl = imageUrl;
+                    character.imageBase64 = imageBase64;  // ✅ referenceImages용
                     character.promptKo = prompt.ko;
                     character.promptEn = prompt.en;
+                    character.descriptionEn = character.descriptionEn || prompt.en;  // ✅ 장면 생성용
+                    character.seed = seed;  // ✅ 일관성 유지용
                     character.generatedAt = Date.now();
                     character.history = [{
                         version: 1,
                         imageUrl: imageUrl,
                         promptKo: prompt.ko,
                         promptEn: prompt.en,
+                        seed: seed,  // ✅ 히스토리에 seed 저장
                         timestamp: Date.now()
                     }];
                     
@@ -275,12 +287,12 @@ const CharacterManager = {
     },
 
     // 등장인물 이미지 생성 (API 호출)
-    async generateCharacterImage(prompt) {
+    async generateCharacterImage(prompt, seed = null) {
         try {
             const imageUrl = await API.generateImageLocal({
                 prompt: prompt.en,
-                negative_prompt: prompt.negative,
-                aspectRatio: this.state.currentAspectRatio  // ✅ aspectRatio 전달
+                aspectRatio: this.state.currentAspectRatio,
+                ...(seed && { seed })  // ✅ seed 전달 (있을 경우만)
             });
             return imageUrl;
         } catch (error) {
@@ -474,8 +486,8 @@ const CharacterManager = {
         return '방금 전';
     },
 
-    // 등장인물 재생성
-    async regenerateCharacter(index) {
+    // 등장인물 재생성 (수정사항 없이 재생성 → 새 시드)
+    async regenerateCharacter(index, modificationText = null) {
         const character = this.state.characters[index];
         if (!character) return;
 
@@ -483,7 +495,25 @@ const CharacterManager = {
             UI.showToast(`${character.name} 재생성 중...`, 'info');
 
             const prompt = await this.createCharacterPrompt(character);
-            const imageUrl = await this.generateCharacterImage(prompt);
+
+            // ✅ 시드 분기 로직: 수정사항 있으면 기존 시드, 없으면 새 시드
+            let seed;
+            if (modificationText && modificationText.trim() !== '') {
+                // 수정사항 있음 → 기존 시드 유지
+                seed = character.seed;
+                console.log(`🔄 [${character.name}] 수정 재생성: 기존 시드 유지 (${seed})`);
+            } else {
+                // 수정사항 없음 → 새 시드 생성
+                seed = Math.floor(Math.random() * 2147483647);
+                console.log(`🔄 [${character.name}] 새 재생성: 새 시드 생성 (${seed})`);
+            }
+
+            const imageUrl = await this.generateCharacterImage(prompt, seed);
+
+            // ✅ imageBase64 추출
+            const imageBase64 = imageUrl.startsWith('data:image/')
+                ? imageUrl.replace(/^data:image\/\w+;base64,/, '')
+                : null;
 
             // 히스토리에 추가
             const version = (character.history?.length || 0) + 1;
@@ -493,13 +523,16 @@ const CharacterManager = {
                 imageUrl: imageUrl,
                 promptKo: prompt.ko,
                 promptEn: prompt.en,
+                seed: seed,  // ✅ 히스토리에 seed 저장
                 timestamp: Date.now()
             });
 
             // 현재 이미지 업데이트
             character.imageUrl = imageUrl;
+            character.imageBase64 = imageBase64;  // ✅ referenceImages용
             character.promptKo = prompt.ko;
             character.promptEn = prompt.en;
+            character.seed = seed;  // ✅ 시드 업데이트
 
             this.renderCharacters();
             UI.showToast(`✅ ${character.name} 재생성 완료!`, 'success');
@@ -518,6 +551,16 @@ const CharacterManager = {
         character.imageUrl = historyItem.imageUrl;
         character.promptKo = historyItem.promptKo;
         character.promptEn = historyItem.promptEn;
+
+        // ✅ seed 복원 (히스토리에 저장된 경우)
+        if (historyItem.seed) {
+            character.seed = historyItem.seed;
+        }
+
+        // ✅ imageBase64 재추출
+        if (historyItem.imageUrl && historyItem.imageUrl.startsWith('data:image/')) {
+            character.imageBase64 = historyItem.imageUrl.replace(/^data:image\/\w+;base64,/, '');
+        }
 
         this.renderCharacters();
 

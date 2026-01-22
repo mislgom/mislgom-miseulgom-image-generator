@@ -703,22 +703,35 @@ const App = {
 
         const currentImageUrl = modalImage.src;
         const originalPrompt = promptEn.value;
-        const editPrompt = `${originalPrompt}, ${editText}`;
 
-        UI.showToast('이미지 수정 중... (img2img)', 'info');
+        UI.showToast('이미지 수정 중...', 'info');
 
         try {
-            const resolution = CharacterManager.getResolutionFromAspectRatio(
-                CharacterManager.state.currentAspectRatio
+            // 타입별로 기존 seed 정보 가져오기
+            let existingSeed = null;
+            if (type === 'character' && index !== undefined) {
+                const character = CharacterManager.state.characters[parseInt(index)];
+                existingSeed = character?.seed;
+            } else if (type === 'scene' && id) {
+                const scene = StoryboardManager.state.scenes.find(s => s.id === id);
+                existingSeed = scene?.seed;
+            }
+
+            // text-to-image 방식으로 이미지 수정
+            const editedImageUrl = await API.editImageLocal(
+                originalPrompt,
+                editText,
+                {
+                    aspectRatio: CharacterManager.state.currentAspectRatio,
+                    seed: existingSeed,
+                    keepSeed: !!editText  // 수정사항 있으면 기존 시드 유지
+                }
             );
 
-            // img2img로 이미지 수정
-            const editedImageUrl = await API.editImageLocal(
-                currentImageUrl,
-                editPrompt,
-                resolution.width,
-                resolution.height
-            );
+            // 최종 프롬프트 (히스토리 기록용)
+            const finalPrompt = editText
+                ? `${originalPrompt}. Additional modification: ${editText}`
+                : originalPrompt;
 
             // ✅ 타입별 데이터 저장 및 히스토리 추가
             if (type === 'character' && index !== undefined) {
@@ -731,13 +744,13 @@ const App = {
                     version: version,
                     imageUrl: editedImageUrl,
                     promptKo: `수정됨: ${editText}`,
-                    promptEn: editPrompt,
+                    promptEn: finalPrompt,
                     timestamp: Date.now()
                 });
 
                 // 메인 이미지 업데이트
                 character.imageUrl = editedImageUrl;
-                character.promptEn = editPrompt;
+                character.promptEn = finalPrompt;
 
                 // UI 업데이트
                 CharacterManager.renderCharacters();
@@ -753,13 +766,13 @@ const App = {
                     version: version,
                     imageUrl: editedImageUrl,
                     promptKo: `수정됨: ${editText}`,
-                    promptEn: editPrompt,
+                    promptEn: finalPrompt,
                     timestamp: Date.now()
                 });
 
                 // 메인 이미지 업데이트
                 scene.imageUrl = editedImageUrl;
-                scene.promptEn = editPrompt;
+                scene.promptEn = finalPrompt;
 
                 // UI 업데이트
                 StoryboardManager.renderScenes();
@@ -768,7 +781,7 @@ const App = {
 
             // 모달 이미지 및 프롬프트 업데이트
             modalImage.src = editedImageUrl;
-            promptEn.value = editPrompt;
+            promptEn.value = finalPrompt;
             if (promptKo) promptKo.value = `수정됨: ${editText}`;
 
             UI.showToast('✅ 이미지 수정 완료!', 'success');
