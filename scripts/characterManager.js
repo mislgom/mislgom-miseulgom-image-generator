@@ -371,12 +371,21 @@ class CharacterManager {
     /**
      * 캐릭터 이미지 생성 (재시도는 API에서 처리, 여기서는 1회 호출만)
      */
-    async generateCharacterImage(characterId, options = {}) {
-        const character = this.state.characters.find(c => c.id === characterId);
-        if (!character) {
-            console.error('[CharacterManager] 캐릭터를 찾을 수 없음:', characterId);
-            return null;
+async generateCharacterImage(characterId, options = {}) {
+    // 🚫 API 미설정(데모 모드) 가드
+    if (window.App?.isDemoMode) {
+        console.warn('[CharacterManager] 데모 모드 - 이미지 생성 차단');
+        if (window.UI?.showToast) {
+            window.UI.showToast('API 설정 후 이미지 생성이 가능합니다', 'warning');
         }
+        return null;
+    }
+
+    const character = this.state.characters.find(c => c.id === characterId);
+    if (!character) {
+        console.error('[CharacterManager] 캐릭터를 찾을 수 없음:', characterId);
+        return null;
+    }
         
         // 이미 생성 중이면 무시
         if (character.imageStatus === 'generating') {
