@@ -803,13 +803,18 @@ const StoryboardManager = {
         };
     },
 
-    // 상태 복원
+    // 상태 복원 (안전한 병합)
     loadState(state) {
         if (state) {
-            this.state = state;
+            // ✅ 기존 state를 완전히 덮어쓰지 않고, 기본값과 병합
+            this.state = {
+                scenes: Array.isArray(state.scenes) ? state.scenes : [],
+                currentPart: state.currentPart || 'all',
+                totalScenes: state.totalScenes || 0
+            };
             this.renderScenes();
             this.updatePartFilter();
-            
+
             if (this.state.scenes.length > 0) {
                 this.enableDownloadButton();
             }

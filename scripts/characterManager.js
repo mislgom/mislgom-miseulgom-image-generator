@@ -748,12 +748,18 @@ const CharacterManager = {
         };
     },
 
-    // 상태 복원
+    // 상태 복원 (안전한 병합)
     loadState(state) {
         if (state) {
-            this.state = state;
+            // ✅ 기존 state를 완전히 덮어쓰지 않고, 기본값과 병합
+            this.state = {
+                characters: Array.isArray(state.characters) ? state.characters : [],
+                currentEthnicity: state.currentEthnicity || 'korean',
+                currentStyle: state.currentStyle || 'korean-webtoon',
+                currentAspectRatio: state.currentAspectRatio || '16:9'
+            };
             this.renderCharacters();
-            
+
             if (this.state.characters.length > 0) {
                 this.enableDownloadButton();
             }
