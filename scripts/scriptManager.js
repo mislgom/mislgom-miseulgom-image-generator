@@ -786,20 +786,40 @@ const ScriptManager = {
         }
     },
 
-    // ✅ 분석 상태 초기화 (새 대본 분석 시 사용)
+   // ✅ 분석 상태 초기화 (새 프로젝트 시 사용) - v1.3
     resetAnalysis() {
+        // 분석 상태 초기화
         this.state.isAnalyzed = false;
         this.state.analysisResult = null;
         this.state.savedCharacters = null;
+        this.state.scripts = { intro: '' };
+        
+        // ✅ 대본 텍스트 초기화
+        const introTextarea = document.getElementById('script-intro');
+        if (introTextarea) {
+            introTextarea.value = '';
+            this.updateCharCount(introTextarea);
+        }
+        
+        for (let i = 1; i <= this.state.partCount; i++) {
+            const textarea = document.getElementById(`script-part-${i}`);
+            if (textarea) {
+                textarea.value = '';
+                this.updateCharCount(textarea);
+            }
+        }
+        
+        // 등장인물 초기화
         CharacterManager.state.characters = [];
         CharacterManager.renderCharacters();
         
+        // 등장인물 생성 버튼 비활성화
         const generateBtn = document.getElementById('generate-characters-btn');
         if (generateBtn) {
             generateBtn.disabled = true;
         }
         
-        console.log('🔄 분석 상태 초기화됨');
+        console.log('🔄 분석 상태 및 대본 초기화됨');
     }
 };
 
