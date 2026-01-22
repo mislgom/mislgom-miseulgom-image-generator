@@ -21,7 +21,7 @@ const App = {
     }
     this._initialized = true;
 
-    console.log('🐻 미슬곰 이미지 생성기 v3.0 시작');
+    console.log(`🐻 미슬곰 이미지 생성기 v${this.version} 시작`);
     console.log(`📅 ${new Date().toLocaleString()}`);
 
     try {
