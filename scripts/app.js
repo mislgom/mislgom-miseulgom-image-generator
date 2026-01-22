@@ -1,11 +1,12 @@
 /**
- * 미슬곰 이미지 자동 생성기 v2.0.1 - 메인 애플리케이션
+ * 미슬곰 이미지 자동 생성기 v2.0.2 - 메인 애플리케이션
  * 모든 모듈을 통합하고 초기화
+ * v2.0.2: 대본 분석 버튼 중복 이벤트 제거
  */
 
 // 전역 앱 상태
 const App = {
-    version: '2.0.1',
+    version: '2.0.2',
     projectName: '새 프로젝트',
     isDemoMode: true,
 
@@ -280,13 +281,8 @@ const App = {
             });
         }
 
-        // 대본 분석 버튼
-        const analyzeBtn = document.getElementById('analyze-script-btn');
-        if (analyzeBtn) {
-            analyzeBtn.addEventListener('click', () => {
-                ScriptManager.analyzeAllScripts();
-            });
-        }
+        // ✅ 대본 분석 버튼 - 제거됨 (ScriptManager.init()에서 이미 등록됨)
+        // 중복 이벤트 방지를 위해 여기서는 등록하지 않음
 
         // 모달 닫기 버튼
         const modalCloseBtns = document.querySelectorAll('.modal-close, .modal-backdrop');
@@ -403,7 +399,9 @@ const App = {
             this.projectName = '새 프로젝트';
             
             // 모든 모듈 초기화
-            ScriptManager.clearScript();
+            if (ScriptManager.resetAnalysis) {
+                ScriptManager.resetAnalysis();
+            }
             CharacterManager.state.characters = [];
             CharacterManager.renderCharacters();
             StoryboardManager.state.scenes = [];
@@ -619,25 +617,11 @@ const App = {
         }
     },
 
-    // 대본 분석
+    // 대본 분석 - ✅ 이 함수는 더 이상 사용되지 않음 (ScriptManager.analyzeAllScripts() 사용)
     async analyzeScript() {
-        try {
-            if (!ScriptManager.isUploaded()) {
-                UI.showToast('먼저 대본을 업로드하세요', 'error');
-                return;
-            }
-
-            UI.showToast('대본 분석 중...', 'info');
-
-            // 등장인물 추출
-            const scriptText = ScriptManager.getRawText();
-            CharacterManager.extractCharactersFromScript(scriptText);
-
-            UI.showToast('✅ 대본 분석 완료!', 'success');
-
-        } catch (error) {
-            console.error('❌ 분석 오류:', error);
-            UI.showToast('분석 중 오류가 발생했습니다', 'error');
+        console.warn('⚠️ App.analyzeScript()는 deprecated. ScriptManager.analyzeAllScripts() 사용');
+        if (window.ScriptManager) {
+            await ScriptManager.analyzeAllScripts();
         }
     },
 
