@@ -1,6 +1,9 @@
 /**
- * 미슬곰 이미지 자동 생성기 v1.0 - API 통신 모듈
+ * 미슬곰 이미지 자동 생성기 v2.1 - API 통신 모듈
  * 백엔드 API와 통신 (데모 모드 포함)
+ * 
+ * v2.0 - 에러별 재시도 정책 + 동시성 제한 + Retry-After 지원
+ * v2.1 - 호출 경로 통일 + 딜레이 중복 제거 + 에러 정보 보존 + 메시지 정교화
  */
 
 const API = {
@@ -8,17 +11,24 @@ const API = {
     baseURL: '',
 
     // 이미지 생성 API 설정 (LocalStorage에서 로드)
-    IMAGE_API_TYPE: 'vertex_ai', // Vertex AI 전용
+    IMAGE_API_TYPE: 'vertex_ai',
     IMAGE_API_KEY: null,
     IMAGE_PROJECT_ID: null,
 
-    // Rate Limit 보호 (Vertex AI)
+    // Rate Limit 보호 (Vertex AI) - 첫 요청 간격용
     lastRequestTime: 0,
-    minDelay: 8000, // 최소 8초 (Vertex AI: 관대한 Rate Limit)
-    maxDelay: 12000, // 최대 12초
+    minRequestInterval: 2000, // 연속 요청 최소 간격 2초 (백오프와 별개)
+
+    // ✅ v2.0: 동시성 제한
+    maxConcurrent: 2,
+    currentRequests: 0,
+    requestQueue: [],
+
+    // ✅ v2.1: 데모 모드 플래그
+    demoMode: false,
 
     // Gemini 대본 분석 API 설정
-    GEMINI_API_KEY: '', // 사용자가 입력해야 함
+    GEMINI_API_KEY: '',
     GEMINI_API_URL: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
 
     // ========== LocalStorage 기반 API 설정 관리 ==========
@@ -46,9 +56,6 @@ const API = {
 
     /**
      * 이미지 생성 API 설정 저장 (서버에 저장)
-     * @param {string} apiType - 'vertex_ai' (고정)
-     * @param {string} apiKey - API 키 또는 'service_account'
-     * @param {string} projectId - Vertex AI 프로젝트 ID
      */
     async saveImageApiSettings(apiType, apiKey, projectId = null) {
         const token = localStorage.getItem('auth_token');
@@ -81,6 +88,14 @@ const API = {
      */
     isImageApiConfigured() {
         return !!(this.IMAGE_API_TYPE && this.IMAGE_API_KEY);
+    },
+
+    /**
+     * 데모 모드 설정
+     */
+    setDemoMode(enabled) {
+        this.demoMode = enabled;
+        console.log(`🎮 데모 모드: ${enabled ? 'ON' : 'OFF'}`);
     },
 
     // 헬스 체크
@@ -139,7 +154,6 @@ const API = {
         } catch (error) {
             console.warn('⚠️ API 호출 실패, 데모 데이터 사용');
             
-            // 데모 데이터
             return {
                 characters: [
                     {
@@ -158,38 +172,24 @@ const API = {
         }
     },
 
-    // 이미지 생성
+    // ✅ v2.1: 이미지 생성 (generateImageLocal로 위임)
     async generateImage(params) {
-        try {
-            const response = await fetch(`${this.baseURL}/api/generate-image`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(params)
-            });
-
-            if (!response.ok) {
-                throw new Error('이미지 생성 실패');
-            }
-
-            const data = await response.json();
-            return data;
-
-        } catch (error) {
-            console.warn('⚠️ API 호출 실패, 데모 이미지 사용');
-            
-            // 데모 이미지
+        // 데모 모드일 때만 데모 이미지 반환
+        if (this.demoMode) {
+            console.log('🎮 데모 모드: 데모 이미지 반환');
             const demoImages = [
                 'https://images.unsplash.com/photo-1551847812-36c8db2e6936?w=800&h=450&fit=crop',
                 'https://images.unsplash.com/photo-1547891654-e66ed7ebb968?w=800&h=450&fit=crop',
                 'https://images.unsplash.com/photo-1551847812-9dcf1acbf8b4?w=800&h=450&fit=crop'
             ];
-
             return {
                 imageUrl: demoImages[Math.floor(Math.random() * demoImages.length)]
             };
         }
+
+        // 운영 모드: generateImageLocal로 위임
+        const imageUrl = await this.generateImageLocal(params);
+        return { imageUrl };
     },
 
     // 프로젝트 생성
@@ -221,73 +221,208 @@ const API = {
     // ========== Google Image Generation API ==========
 
     /**
-     * API별 딜레이 설정 가져오기
-     * @returns {Object} - { min, max } 딜레이 범위 (밀리초)
+     * ✅ v2.1: 재시도 불가 에러인지 확인
      */
-    getDelayForApi() {
-        // Vertex AI: Rate Limit 보호 (this.minDelay ~ this.maxDelay)
-        return { min: this.minDelay, max: this.maxDelay };
-    },
-
-    /**
-     * Rate Limit 보호를 위한 딜레이
-     */
-    async _waitBeforeRequest() {
-        const { min, max } = this.getDelayForApi();
-        const elapsed = Date.now() - this.lastRequestTime;
-        const requiredDelay = Math.random() * (max - min) + min;
-
-        if (elapsed < requiredDelay) {
-            const waitTime = requiredDelay - elapsed;
-            console.log(`⏳ Vertex AI Rate Limit 보호: ${(waitTime/1000).toFixed(1)}초 대기...`);
-            await new Promise(resolve => setTimeout(resolve, waitTime));
+    _isNonRetryableError(status, errorMessage) {
+        // 400 계열: 특정 키워드 포함 시 재시도 금지
+        if (status === 400) {
+            const msg = (errorMessage || '').toLowerCase();
+            const nonRetryableKeywords = [
+                'invalid endpoint',
+                'validation',
+                'does not exist',
+                'invalid request',
+                'bad request',
+                'invalid argument'
+            ];
+            return nonRetryableKeywords.some(keyword => msg.includes(keyword));
         }
 
-        this.lastRequestTime = Date.now();
+        // 401, 403: 인증/권한 오류 - 재시도 금지
+        if (status === 401 || status === 403) {
+            return true;
+        }
+
+        return false;
     },
 
     /**
-     * Exponential Backoff 재시도 로직
-     * @param {Function} func - 실행할 함수
-     * @param {number} maxRetries - 최대 재시도 횟수
+     * ✅ v2.0: Retry-After 헤더 파싱
+     */
+    _parseRetryAfter(response) {
+        const retryAfter = response.headers.get('retry-after');
+        if (!retryAfter) return null;
+
+        // 숫자인 경우 (초 단위)
+        const seconds = parseInt(retryAfter, 10);
+        if (!isNaN(seconds)) {
+            console.log(`📋 Retry-After 헤더 감지: ${seconds}초`);
+            return seconds * 1000;
+        }
+
+        // HTTP date 형식인 경우
+        try {
+            const retryDate = new Date(retryAfter);
+            const waitTime = retryDate.getTime() - Date.now();
+            if (waitTime > 0) {
+                console.log(`📋 Retry-After 헤더 감지 (date): ${(waitTime/1000).toFixed(1)}초`);
+                return waitTime;
+            }
+        } catch (e) {
+            // 파싱 실패 - 무시
+        }
+
+        return null;
+    },
+
+    /**
+     * ✅ v2.1: status별 사용자 메시지 생성
+     */
+    _getFinalErrorMessage(status, originalMessage) {
+        if (status === 429) {
+            return '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.';
+        }
+        if (status >= 500 && status < 600) {
+            return '서버에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해주세요.';
+        }
+        if (originalMessage && (
+            originalMessage.includes('Failed to fetch') ||
+            originalMessage.includes('network') ||
+            originalMessage.includes('NetworkError')
+        )) {
+            return '네트워크 연결을 확인해주세요.';
+        }
+        return originalMessage || '이미지 생성에 실패했습니다.';
+    },
+
+    /**
+     * ✅ v2.1: 개선된 Exponential Backoff 재시도 로직
+     * - 에러별 재시도 정책 적용
+     * - Retry-After 헤더 우선
+     * - 백오프: 8초 → 16초 → 32초 + 지터(±2초)
+     * - 에러 정보 보존
      */
     async _retryWithBackoff(func, maxRetries = 3) {
+        let lastError = null;
+        let lastResponse = null;
+        let lastStatus = null;
+        let lastOriginalMessage = null;
+
         for (let attempt = 0; attempt < maxRetries; attempt++) {
             try {
-                return await func();
+                return await func((response) => {
+                    lastResponse = response;
+                });
             } catch (error) {
-                const errorStr = error.toString();
+                lastError = error;
+                lastStatus = error.status || (lastResponse?.status);
+                lastOriginalMessage = error.originalMessage || error.message;
 
-                // 429 Rate Limit 에러
-                if (errorStr.includes('429') || errorStr.includes('RESOURCE_EXHAUSTED')) {
-                    if (attempt === maxRetries - 1) {
-                        throw new Error('일일 사용량을 초과했습니다. 잠시 후 다시 시도해주세요.');
-                    }
+                const errorStr = error.message || error.toString();
 
-                    // Exponential backoff: 5초, 10초, 20초 + jitter
-                    const waitTime = Math.pow(2, attempt) * 5000 + Math.random() * 2000;
-                    console.warn(`⚠️ Rate Limit 도달. ${(waitTime/1000).toFixed(1)}초 후 재시도 (${attempt + 1}/${maxRetries})...`);
-                    await new Promise(resolve => setTimeout(resolve, waitTime));
-                } else {
+                // ✅ 재시도 불가 에러 체크
+                if (this._isNonRetryableError(lastStatus, errorStr)) {
+                    console.error(`❌ 재시도 불가 에러 (${lastStatus}): ${errorStr}`);
                     throw error;
                 }
+
+                // 429 또는 5xx 또는 네트워크 에러만 재시도
+                const isRetryable = 
+                    lastStatus === 429 ||
+                    error.code === 'RESOURCE_EXHAUSTED' ||
+                    (lastStatus >= 500 && lastStatus < 600) ||
+                    errorStr.includes('Failed to fetch') ||
+                    errorStr.includes('network') ||
+                    errorStr.includes('NetworkError');
+
+                if (!isRetryable) {
+                    throw error;
+                }
+
+                // 마지막 시도였으면 에러 throw
+                if (attempt === maxRetries - 1) {
+                    console.error(`❌ 최대 재시도 횟수(${maxRetries}회) 초과`);
+                    
+                    // ✅ v2.1: status별 메시지 분기 + 원본 정보 보존
+                    const finalError = new Error(this._getFinalErrorMessage(lastStatus, lastOriginalMessage));
+                    finalError.status = lastStatus;
+                    finalError.originalMessage = lastOriginalMessage;
+                    finalError.code = error.code;
+                    throw finalError;
+                }
+
+                // ✅ Retry-After 헤더 우선 확인
+                let waitTime = null;
+                if (lastResponse) {
+                    waitTime = this._parseRetryAfter(lastResponse);
+                }
+
+                // Retry-After가 없으면 지수 백오프 사용: 8초 → 16초 → 32초
+                if (!waitTime) {
+                    const baseDelay = 8000;
+                    const exponentialDelay = Math.pow(2, attempt) * baseDelay;
+                    const jitter = (Math.random() * 4000) - 2000; // ✅ v2.1: ±2초 지터
+                    waitTime = Math.max(exponentialDelay + jitter, baseDelay); // 최소 8초 보장
+                }
+
+                console.warn(`⚠️ 재시도 대기. ${(waitTime/1000).toFixed(1)}초 후 재시도 (${attempt + 1}/${maxRetries})...`);
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+            }
+        }
+
+        throw lastError;
+    },
+
+    /**
+     * ✅ v2.0: 동시성 제한을 위한 큐 처리
+     */
+    async _executeWithQueue(func) {
+        // 동시 요청 수 체크
+        if (this.currentRequests >= this.maxConcurrent) {
+            console.log(`⏳ 동시성 제한 (${this.currentRequests}/${this.maxConcurrent}), 큐 대기 중...`);
+            
+            await new Promise(resolve => {
+                this.requestQueue.push(resolve);
+            });
+        }
+
+        this.currentRequests++;
+        console.log(`🔄 요청 시작 (현재 ${this.currentRequests}/${this.maxConcurrent})`);
+
+        try {
+            return await func();
+        } finally {
+            this.currentRequests--;
+            console.log(`✅ 요청 완료 (현재 ${this.currentRequests}/${this.maxConcurrent})`);
+
+            // 큐에서 대기 중인 요청 실행
+            if (this.requestQueue.length > 0) {
+                const next = this.requestQueue.shift();
+                next();
             }
         }
     },
 
     /**
-     * Google Image Generation API로 이미지 생성 (JWT 토큰 방식)
-     * @param {Object} params - 생성 파라미터
-     * @param {string} params.prompt - 프롬프트
-     * @param {string} params.aspectRatio - 비율 (기본: '1:1')
-     * @param {number} params.seed - 시드값 (선택)
-     * @param {Array} params.referenceImages - 참조 이미지 배열 (선택)
-     * @returns {Promise<string>} - 이미지 Data URL
+     * ✅ v2.1: 연속 요청 간격 보장 (최소 2초)
+     * - 백오프와 별개로, 연속 요청 시 최소 간격만 보장
+     */
+    async _ensureMinInterval() {
+        const elapsed = Date.now() - this.lastRequestTime;
+        if (elapsed < this.minRequestInterval) {
+            const waitTime = this.minRequestInterval - elapsed;
+            console.log(`⏳ 요청 간격 보장: ${(waitTime/1000).toFixed(1)}초 대기...`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
+        this.lastRequestTime = Date.now();
+    },
+
+    /**
+     * ✅ v2.1: Google Image Generation API로 이미지 생성 (최종 개선 버전)
      */
     async generateImageLocal(params) {
         const { prompt, aspectRatio = '1:1', seed, referenceImages } = params;
 
-        // JWT 토큰 가져오기
         const token = localStorage.getItem('auth_token');
 
         if (!token) {
@@ -300,80 +435,78 @@ const API = {
             apiType: 'vertex_ai'
         });
 
-        // Rate Limit 보호 및 재시도
-        return await this._retryWithBackoff(async () => {
-            await this._waitBeforeRequest();
+        // ✅ 동시성 제한 + 재시도 로직
+        return await this._executeWithQueue(async () => {
+            return await this._retryWithBackoff(async (setResponse) => {
+                // ✅ v2.1: 연속 요청 간격만 보장 (백오프와 중복 제거)
+                await this._ensureMinInterval();
 
-            // Vercel 서버리스 함수 호출
-            const response = await fetch('/api/generate-image', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    prompt,
-                    aspectRatio,
-                    ...(seed && { seed }),
-                    ...(referenceImages && referenceImages.length > 0 && { referenceImages })
-                })
-            });
+                const response = await fetch('/api/generate-image', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        prompt,
+                        aspectRatio,
+                        ...(seed && { seed }),
+                        ...(referenceImages && referenceImages.length > 0 && { referenceImages })
+                    })
+                });
 
-            if (response.status === 401) {
-                // 토큰 만료
-                localStorage.removeItem('auth_token');
-                window.location.href = '/login.html';
-                throw new Error('로그인이 만료되었습니다');
-            }
+                // 응답 객체 저장 (Retry-After 파싱용)
+                if (setResponse) setResponse(response);
 
-            if (!response.ok) {
-                const data = await response.json().catch(() => ({}));
-
-                if (response.status === 429) {
-                    // 429 에러 상세 로깅
-                    console.error('❌ 429 Rate Limit 에러 발생:', {
-                        status: response.status,
-                        statusText: response.statusText,
-                        headers: {
-                            'retry-after': response.headers.get('retry-after'),
-                            'x-ratelimit-limit': response.headers.get('x-ratelimit-limit'),
-                            'x-ratelimit-remaining': response.headers.get('x-ratelimit-remaining'),
-                            'x-ratelimit-reset': response.headers.get('x-ratelimit-reset')
-                        },
-                        errorBody: data
-                    });
-                    throw new Error('RESOURCE_EXHAUSTED');
+                if (response.status === 401) {
+                    localStorage.removeItem('auth_token');
+                    window.location.href = '/login.html';
+                    const error = new Error('로그인이 만료되었습니다');
+                    error.status = 401;
+                    throw error;
                 }
 
-                throw new Error(data.error || `API 오류: ${response.status}`);
-            }
+                if (!response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    const originalMessage = data.error || `API 오류: ${response.status}`;
 
-            const data = await response.json();
-            console.log('✅ 이미지 생성 완료');
+                    // ✅ v2.1: 에러 정보 보존
+                    const error = new Error(originalMessage);
+                    error.status = response.status;
+                    error.originalMessage = originalMessage;
 
-            return data.imageUrl;
+                    if (response.status === 429) {
+                        error.code = 'RESOURCE_EXHAUSTED';
+                        console.error('❌ 429 Rate Limit 에러 발생:', {
+                            status: response.status,
+                            retryAfter: response.headers.get('retry-after'),
+                            originalMessage
+                        });
+                    }
+
+                    throw error;
+                }
+
+                const data = await response.json();
+                console.log('✅ 이미지 생성 완료');
+
+                return data.imageUrl;
+            });
         });
     },
 
-
     /**
-     * 이미지 수정 (text-to-image 방식) - 기존 프롬프트 + 수정 요청 합성
-     * @param {string} originalPrompt - 기존 이미지 생성 프롬프트
-     * @param {string} editPrompt - 수정 요청 텍스트
-     * @param {Object} options - 추가 옵션 { aspectRatio, seed, keepSeed, imageBase64 }
-     * @returns {Promise<string>} - 새 이미지 Data URL
+     * 이미지 수정 (text-to-image 방식)
      */
     async editImageLocal(originalPrompt, editPrompt, options = {}) {
         const { aspectRatio = '1:1', seed, keepSeed, imageBase64 } = options;
 
-        console.log('🔄 이미지 수정 (text-to-image 방식):', editPrompt.substring(0, 30) + '...');
+        console.log('🔄 이미지 수정 (text-to-image 방식):', editPrompt ? editPrompt.substring(0, 30) + '...' : '(프롬프트 유지)');
 
-        // 기존 프롬프트 + 수정 요청 합성
         const fullPrompt = editPrompt
             ? `${originalPrompt}. Additional modification: ${editPrompt}`
             : originalPrompt;
 
-        // ✅ referenceImages 구성 (기존 이미지를 참조 이미지로 전달하여 일관성 유지)
         let referenceImages = [];
         if (imageBase64) {
             referenceImages = [{
@@ -387,9 +520,7 @@ const API = {
         return await this.generateImageLocal({
             prompt: fullPrompt,
             aspectRatio: aspectRatio,
-            // keepSeed가 true이고 seed가 있으면 기존 시드 유지
             ...(keepSeed && seed && { seed: seed }),
-            // referenceImages가 있으면 전달
             ...(referenceImages.length > 0 && { referenceImages })
         });
     },
@@ -397,9 +528,7 @@ const API = {
     // ========== Gemini API (대본 분석) ==========
     
     /**
-     * Gemini API로 대본 분석 (v2.0 - System Instruction + 등장인물 자동 추출)
-     * @param {Object} scripts - 파트별 대본 { intro: '', part1: '', ... }
-     * @returns {Promise<Object>} - { characters: [...], scenes: {...} }
+     * Gemini API로 대본 분석
      */
     async analyzeScriptWithGemini(scripts) {
         if (!this.GEMINI_API_KEY) {
@@ -410,7 +539,6 @@ const API = {
         try {
             const scriptsJson = JSON.stringify(scripts, null, 2);
 
-            // 🆕 System Instruction 정의 (v4.0 - 한국/일본 다국어 지원 + 시대 판별 + 디테일 복식)
             const systemInstruction = {
                 parts: [{
                     text: `당신은 한국/일본 이야기 대본을 분석하는 전문가입니다. 대본의 언어를 자동으로 감지하고, 내용을 읽고 시대 배경을 판별하며, 등장인물을 추출하고, 장면 수를 계산합니다.
@@ -429,7 +557,7 @@ const API = {
 - **modern** (현대): "자동차", "휴대폰", "회사", "아파트", "카페", "인터넷", "양복", "청바지" 등
 
 **일본:**
-- **edo** (에도시대, 1603-1868): "侍" (사무라이), "刀", "着物", "江戸", "大名", "町人", "ちょんまげ" (상투머리) 등
+- **edo** (에도시대, 1603-1868): "侍", "刀", "着物", "江戸", "大名", "町人", "ちょんまげ" 등
 - **meiji** (메이지시대, 1868-1912): "文明開化", "洋服", "ガス灯", "人力車", "明治" 등
 - **taisho** (다이쇼시대, 1912-1926): "大正", "モダン", "カフェー", "洋館" 등
 - **showa** (쇼와시대, 1926-1989): "昭和", "戦争", "高度成長" 등
@@ -484,8 +612,8 @@ const API = {
 
 **중요: 등장인물 설명은 반드시 다음을 포함하세요:**
 1. 나이대 (20s, 30s, 40s, 50s)
-2. 시대와 문화권에 맞는 구체적인 복식 (예: 에도시대 사무라이: hakama/katana, 조선시대: jeogori/chima/gat)
-3. 헤어스타일 (예: 에도시대: chonmage, 조선시대: sangtu/daenggi, 현대: modern hairstyle)
+2. 시대와 문화권에 맞는 구체적인 복식
+3. 헤어스타일
 4. 얼굴 특징 (kind expression, sharp eyes, gentle smile 등)
 
 **컷 수 계산 규칙 (Visual Trigger Rule):**
@@ -505,13 +633,12 @@ const API = {
                 }]
             };
 
-            // 🆕 JSON Schema 정의 (Gemini API 호환) - v4.0 다국어 지원 (한국/일본 시대 포함)
             const responseSchema = {
                 type: "object",
                 properties: {
                     era: {
                         type: "string",
-                        description: "대본의 시대 배경 (한국: joseon/modern, 일본: edo/meiji/taisho/showa/modern, 공통: future/fantasy)",
+                        description: "대본의 시대 배경",
                         enum: ["joseon", "edo", "meiji", "taisho", "showa", "modern", "future", "fantasy"]
                     },
                     characters: {
@@ -520,25 +647,13 @@ const API = {
                         items: {
                             type: "object",
                             properties: {
-                                name: {
-                                    type: "string",
-                                    description: "원어 이름 (한글 또는 일본어 원문)"
-                                },
-                                nameEn: {
-                                    type: "string",
-                                    description: "영문/로마자 이름 (예: Tanaka Taro, Kim Minho)"
-                                },
-                                descriptionKo: {
-                                    type: "string",
-                                    description: "한글 시각적 묘사 (나이대, 외형, 복장, 헤어스타일, 특징)"
-                                },
-                                descriptionEn: {
-                                    type: "string",
-                                    description: "영문 시각적 묘사 (이미지 생성용, 매우 구체적으로)"
-                                },
+                                name: { type: "string", description: "원어 이름" },
+                                nameEn: { type: "string", description: "영문/로마자 이름" },
+                                descriptionKo: { type: "string", description: "한글 시각적 묘사" },
+                                descriptionEn: { type: "string", description: "영문 시각적 묘사" },
                                 era: {
                                     type: "string",
-                                    description: "이 인물의 시대 배경 (한국: joseon/modern, 일본: edo/meiji/taisho/showa/modern, 공통: future/fantasy)",
+                                    description: "이 인물의 시대 배경",
                                     enum: ["joseon", "edo", "meiji", "taisho", "showa", "modern", "future", "fantasy"]
                                 }
                             },
@@ -551,35 +666,13 @@ const API = {
                         items: {
                             type: "object",
                             properties: {
-                                partName: {
-                                    type: "string",
-                                    description: "파트 이름 (intro, 1, 2, 3...)"
-                                },
-                                charCount: {
-                                    type: "integer",
-                                    description: "대본 글자 수"
-                                },
-                                visualTriggers: {
-                                    type: "array",
-                                    description: "감지된 시각적 변화 목록",
-                                    items: { type: "string" }
-                                },
-                                totalScenes: {
-                                    type: "integer",
-                                    description: "전체 장면 수 (최대 50)"
-                                },
-                                importantScenes: {
-                                    type: "integer",
-                                    description: "중요 장면 수 (최대 35)"
-                                },
-                                minimalScenes: {
-                                    type: "integer",
-                                    description: "최소 장면 수 (최대 20)"
-                                },
-                                selectedCount: {
-                                    type: "integer",
-                                    description: "기본 선택 장면 수"
-                                }
+                                partName: { type: "string", description: "파트 이름" },
+                                charCount: { type: "integer", description: "대본 글자 수" },
+                                visualTriggers: { type: "array", items: { type: "string" } },
+                                totalScenes: { type: "integer", description: "전체 장면 수" },
+                                importantScenes: { type: "integer", description: "중요 장면 수" },
+                                minimalScenes: { type: "integer", description: "최소 장면 수" },
+                                selectedCount: { type: "integer", description: "기본 선택 장면 수" }
                             },
                             required: ["partName", "charCount", "totalScenes", "importantScenes", "minimalScenes", "selectedCount"]
                         }
@@ -590,7 +683,6 @@ const API = {
 
             console.log('🤖 Gemini API 호출 중 (System Instruction + JSON Mode)...');
 
-            // 🆕 API 호출 (System Instruction + JSON 강제 모드)
             const response = await fetch(`${this.GEMINI_API_URL}?key=${this.GEMINI_API_KEY}`, {
                 method: 'POST',
                 headers: {
@@ -626,11 +718,9 @@ ${scriptsJson}
 
             const data = await response.json();
 
-            // 🆕 JSON 직접 파싱 (강제 모드이므로 안전)
             const textResponse = data.candidates[0].content.parts[0].text;
             const analysisResult = JSON.parse(textResponse);
 
-            // 🔄 scenes 배열을 객체로 변환 (partName을 키로 사용)
             if (Array.isArray(analysisResult.scenes)) {
                 const scenesObject = {};
                 analysisResult.scenes.forEach(scene => {
@@ -660,14 +750,11 @@ ${scriptsJson}
     },
 
     /**
-     * 규칙 기반 대본 분석 (폴백) - v2.0 (등장인물 + 장면 수)
-     * @param {Object} scripts - 파트별 대본
-     * @returns {Object} - { characters: [...], scenes: {...} }
+     * 규칙 기반 대본 분석 (폴백)
      */
     analyzeScriptRuleBased(scripts) {
         console.log('📝 규칙 기반 대본 분석 시작 (Gemini API 없음)');
         
-        // 🆕 기본 등장인물 (데모용)
         const characters = [
             {
                 name: '주인공',
@@ -683,7 +770,6 @@ ${scriptsJson}
             }
         ];
 
-        // 장면 수 계산 (기존 로직)
         const scenes = {};
 
         Object.keys(scripts).forEach(part => {
@@ -724,7 +810,7 @@ ${scriptsJson}
                 totalScenes,
                 importantScenes,
                 minimalScenes,
-                selectedCount: importantScenes // 기본값
+                selectedCount: importantScenes
             };
         });
 
@@ -736,9 +822,7 @@ ${scriptsJson}
     },
 
     /**
-     * Gemini로 장면별 프롬프트 생성 - v3.0 (등장인물 일관성 유지)
-     * @param {Object} params - { scriptText, characters, style, era }
-     * @returns {Promise<Object>} - { promptEn, promptKo, negative }
+     * Gemini로 장면별 프롬프트 생성
      */
     async generateScenePromptWithGemini(params) {
         if (!this.GEMINI_API_KEY) {
@@ -749,7 +833,6 @@ ${scriptsJson}
         try {
             const { scriptText, characters, style, era } = params;
 
-            // 등장인물 정보 문자열로 변환 (descriptionEn fallback 적용)
             const characterInfo = characters && characters.length > 0
                 ? characters.map(c => {
                     const desc = c.descriptionEn || c.description || c.promptEn || 'character';
@@ -800,8 +883,8 @@ ${characterInfo}
 **시대 배경:** ${era || 'modern'}
 
 **요구사항:**
-- 등장인물이 있다면 정확한 설명 포함 (예시: "featuring [character name] wearing [era-appropriate clothing]")
-- 시대 배경(era)에 맞는 정확한 복식과 배경 묘사 (예: 조선시대=hanbok/gat, 에도시대=kimono/hakama)
+- 등장인물이 있다면 정확한 설명 포함
+- 시대 배경(era)에 맞는 정확한 복식과 배경 묘사
 - 장소, 시간대, 조명, 분위기를 구체적으로 묘사
 - 자연스러운 문장형 프롬프트로 작성
 
