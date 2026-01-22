@@ -638,18 +638,33 @@ try {
     },
 
     // CharacterManager loadState 폴백
-    _loadCharactersFallback(data) {
-        if (window.CharacterManager?.state && data?.characters) {
-            window.CharacterManager.state.characters = data.characters;
-            window.CharacterManager.state.selectedCharacter = data.selectedCharacter || null;
-            
-            if (window.CharacterManager.render) {
-                window.CharacterManager.render();
-            } else if (window.CharacterManager.renderCharacters) {
-                window.CharacterManager.renderCharacters();
-            }
+_loadCharactersFallback(data) {
+    // CharacterManager.state가 없으면 생성
+    if (window.CharacterManager && !window.CharacterManager.state) {
+        window.CharacterManager.state = { 
+            characters: [], 
+            selectedCharacter: null, 
+            isGenerating: false 
+        };
+    }
+    
+    // data.characters 배열 보장
+    if (!Array.isArray(data?.characters)) {
+        data = data || {};
+        data.characters = [];
+    }
+    
+    if (window.CharacterManager?.state) {
+        window.CharacterManager.state.characters = data.characters;
+        window.CharacterManager.state.selectedCharacter = data.selectedCharacter || null;
+        
+        if (window.CharacterManager.render) {
+            window.CharacterManager.render();
+        } else if (window.CharacterManager.renderCharacters) {
+            window.CharacterManager.renderCharacters();
         }
-    },
+    }
+},
 
     // StoryboardManager loadState 폴백
     _loadStoryboardFallback(data) {
