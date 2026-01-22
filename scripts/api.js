@@ -435,23 +435,52 @@ async _withConcurrency(taskFn) {
         this.lastRequestTime = Date.now();
     },
 
-    /**
-     * ✅ v2.1: Google Image Generation API로 이미지 생성 (최종 개선 버전)
-     */
-    async generateImageLocal(params) {
-        const { prompt, aspectRatio = '1:1', seed, referenceImages } = params;
+/**
+ * ✅ v2.1: Google Image Generation API로 이미지 생성 (동시성/재시도 적용)
+ */
+async generateImageLocal(params) {
+    const { prompt, aspectRatio = '1:1', seed, referenceImages } = params;
 
-        const token = localStorage.getItem('auth_token');
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+        throw new Error('로그인이 필요합니다');
+    }
 
-        if (!token) {
-            throw new Error('로그인이 필요합니다');
-        }
+    console.log('🎨 이미지 생성 요청:', {
+        prompt: prompt.substring(0, 50) + '...',
+        aspectRatio,
+        apiType: 'vertex_ai'
+    });
 
-        console.log('🎨 이미지 생성 요청:', {
-            prompt: prompt.substring(0, 50) + '...',
-            aspectRatio,
-            apiType: 'vertex_ai'
-        });
+    return await this._withConcurrency(() =>
+        this._retryWithBackoff(async () => {
+            // 연속 요청 최소 간격 보장
+            await this._ensureMinInterval();
+
+            const response = await fetch('/api/generate-image', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    prompt,
+                    aspectRatio,
+                    ...(seed && { seed }),
+                    ...(referenceImages && referenceImages.length > 0 && { referenceImages })
+                })
+            });
+
+            if (!response.ok) {
+                const text = await response.text();
+                throw new Error(text || `HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+            return data.imageUrl;
+        })
+    );
+},
 
 // ✅ 동시성 제한 + 재시도 로직
 return await this._withConcurrency(() =>
