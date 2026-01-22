@@ -717,14 +717,25 @@ const App = {
                 existingSeed = scene?.seed;
             }
 
-            // text-to-image 방식으로 이미지 수정
+            // ✅ 기존 이미지 base64 가져오기
+            let existingImageBase64 = null;
+            if (type === 'character' && index !== undefined) {
+                const character = CharacterManager.state.characters[parseInt(index)];
+                existingImageBase64 = character?.imageBase64;
+            } else if (type === 'scene' && id) {
+                const scene = StoryboardManager.state.scenes.find(s => s.id === id);
+                existingImageBase64 = scene?.imageBase64;
+            }
+
+            // text-to-image 방식으로 이미지 수정 (기존 이미지 참조)
             const editedImageUrl = await API.editImageLocal(
                 originalPrompt,
                 editText,
                 {
                     aspectRatio: CharacterManager.state.currentAspectRatio,
                     seed: existingSeed,
-                    keepSeed: !!editText  // 수정사항 있으면 기존 시드 유지
+                    keepSeed: !!editText,  // 수정사항 있으면 기존 시드 유지
+                    imageBase64: existingImageBase64  // ✅ 기존 이미지 참조
                 }
             );
 
@@ -732,6 +743,11 @@ const App = {
             const finalPrompt = editText
                 ? `${originalPrompt}. Additional modification: ${editText}`
                 : originalPrompt;
+
+            // ✅ 새 이미지의 imageBase64 추출
+            const newImageBase64 = editedImageUrl.startsWith('data:image/')
+                ? editedImageUrl.replace(/^data:image\/\w+;base64,/, '')
+                : null;
 
             // ✅ 타입별 데이터 저장 및 히스토리 추가
             if (type === 'character' && index !== undefined) {
@@ -750,6 +766,7 @@ const App = {
 
                 // 메인 이미지 업데이트
                 character.imageUrl = editedImageUrl;
+                character.imageBase64 = newImageBase64;  // ✅ imageBase64 업데이트
                 character.promptEn = finalPrompt;
 
                 // UI 업데이트
@@ -772,6 +789,7 @@ const App = {
 
                 // 메인 이미지 업데이트
                 scene.imageUrl = editedImageUrl;
+                scene.imageBase64 = newImageBase64;  // ✅ imageBase64 업데이트
                 scene.promptEn = finalPrompt;
 
                 // UI 업데이트

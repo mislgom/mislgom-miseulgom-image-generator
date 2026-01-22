@@ -360,10 +360,12 @@ const API = {
      * 이미지 수정 (text-to-image 방식) - 기존 프롬프트 + 수정 요청 합성
      * @param {string} originalPrompt - 기존 이미지 생성 프롬프트
      * @param {string} editPrompt - 수정 요청 텍스트
-     * @param {Object} options - 추가 옵션 { aspectRatio, seed, keepSeed }
+     * @param {Object} options - 추가 옵션 { aspectRatio, seed, keepSeed, imageBase64 }
      * @returns {Promise<string>} - 새 이미지 Data URL
      */
     async editImageLocal(originalPrompt, editPrompt, options = {}) {
+        const { aspectRatio = '1:1', seed, keepSeed, imageBase64 } = options;
+
         console.log('🔄 이미지 수정 (text-to-image 방식):', editPrompt.substring(0, 30) + '...');
 
         // 기존 프롬프트 + 수정 요청 합성
@@ -371,11 +373,24 @@ const API = {
             ? `${originalPrompt}. Additional modification: ${editPrompt}`
             : originalPrompt;
 
+        // ✅ referenceImages 구성 (기존 이미지를 참조 이미지로 전달하여 일관성 유지)
+        let referenceImages = [];
+        if (imageBase64) {
+            referenceImages = [{
+                referenceId: 1,
+                imageBase64: imageBase64,
+                description: 'maintain consistency with original image'
+            }];
+            console.log('📷 기존 이미지를 참조 이미지로 전달 (일관성 유지)');
+        }
+
         return await this.generateImageLocal({
             prompt: fullPrompt,
-            aspectRatio: options.aspectRatio || '1:1',
+            aspectRatio: aspectRatio,
             // keepSeed가 true이고 seed가 있으면 기존 시드 유지
-            ...(options.keepSeed && options.seed && { seed: options.seed })
+            ...(keepSeed && seed && { seed: seed }),
+            // referenceImages가 있으면 전달
+            ...(referenceImages.length > 0 && { referenceImages })
         });
     },
 

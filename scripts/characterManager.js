@@ -447,8 +447,9 @@ const CharacterManager = {
         history.forEach((item, index) => {
             const historyItem = document.createElement('div');
             historyItem.className = 'history-item';
+            historyItem.dataset.version = item.version;
             historyItem.innerHTML = `
-                <img src="${item.imageUrl}" alt="v${item.version}" class="history-thumbnail">
+                <img src="${item.imageUrl}" alt="v${item.version}" class="history-thumbnail" style="cursor: pointer;">
                 <div class="history-info">
                     <span class="history-version">v${item.version}</span>
                     <span class="history-date">${this.formatTimestamp(item.timestamp)}</span>
@@ -457,6 +458,15 @@ const CharacterManager = {
                     ↩️
                 </button>
             `;
+
+            // ✅ 썸네일 클릭 → 미리보기 업데이트 (복원 없이 미리보기만)
+            const thumbnail = historyItem.querySelector('.history-thumbnail');
+            if (thumbnail) {
+                thumbnail.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.previewHistoryItem(item, historyContainer);
+                });
+            }
 
             // 복원 버튼
             const restoreBtn = historyItem.querySelector('[data-version]');
@@ -468,6 +478,27 @@ const CharacterManager = {
 
             historyContainer.appendChild(historyItem);
         });
+    },
+
+    // ✅ 히스토리 아이템 미리보기 (복원 없이 미리보기만)
+    previewHistoryItem(item, historyContainer) {
+        // 선택 표시 업데이트
+        const allItems = historyContainer.querySelectorAll('.history-item');
+        allItems.forEach(el => el.classList.remove('selected'));
+        const selectedItem = historyContainer.querySelector(`[data-version="${item.version}"]`);
+        if (selectedItem) selectedItem.classList.add('selected');
+
+        // 모달 이미지 업데이트
+        const modalImage = document.getElementById('modal-image');
+        if (modalImage) modalImage.src = item.imageUrl;
+
+        // 프롬프트 업데이트
+        const promptKo = document.getElementById('modal-prompt-ko');
+        const promptEn = document.getElementById('modal-prompt-en');
+        if (promptKo) promptKo.value = item.promptKo || '';
+        if (promptEn) promptEn.value = item.promptEn || '';
+
+        console.log(`👁️ 히스토리 v${item.version} 미리보기`);
     },
 
     // 타임스탬프 포맷

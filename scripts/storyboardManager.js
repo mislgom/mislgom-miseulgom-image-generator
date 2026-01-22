@@ -93,12 +93,18 @@ const StoryboardManager = {
                             seed: seed
                         });
 
+                        // ✅ imageBase64 추출 (수정 요청 시 참조용)
+                        const imageBase64 = imageUrl.startsWith('data:image/')
+                            ? imageUrl.replace(/^data:image\/\w+;base64,/, '')
+                            : null;
+
                         // 장면 추가 (확장된 데이터)
                         const scene = {
                             id: `scene_${Date.now()}_${sceneIndex}`,
                             partNumber: segment.partNumber,
                             segmentNumber: segment.segmentNumber,
                             imageUrl: imageUrl,
+                            imageBase64: imageBase64,  // ✅ imageBase64 저장
                             promptKo: prompt.ko,
                             promptEn: prompt.en,
                             scriptText: segment.fullText,
@@ -540,8 +546,9 @@ const StoryboardManager = {
         history.forEach((item) => {
             const historyItem = document.createElement('div');
             historyItem.className = 'history-item';
+            historyItem.dataset.version = item.version;
             historyItem.innerHTML = `
-                <img src="${item.imageUrl}" alt="v${item.version}" class="history-thumbnail">
+                <img src="${item.imageUrl}" alt="v${item.version}" class="history-thumbnail" style="cursor: pointer;">
                 <div class="history-info">
                     <span class="history-version">v${item.version}</span>
                     <span class="history-date">${CharacterManager.formatTimestamp(item.timestamp)}</span>
@@ -550,6 +557,15 @@ const StoryboardManager = {
                     ↩️
                 </button>
             `;
+
+            // ✅ 썸네일 클릭 → 미리보기 업데이트 (복원 없이 미리보기만)
+            const thumbnail = historyItem.querySelector('.history-thumbnail');
+            if (thumbnail) {
+                thumbnail.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.previewHistoryItem(item, historyContainer);
+                });
+            }
 
             // ✅ 복원 버튼 이벤트
             const restoreBtn = historyItem.querySelector('[data-version]');
@@ -561,6 +577,27 @@ const StoryboardManager = {
 
             historyContainer.appendChild(historyItem);
         });
+    },
+
+    // ✅ 히스토리 아이템 미리보기 (복원 없이 미리보기만)
+    previewHistoryItem(item, historyContainer) {
+        // 선택 표시 업데이트
+        const allItems = historyContainer.querySelectorAll('.history-item');
+        allItems.forEach(el => el.classList.remove('selected'));
+        const selectedItem = historyContainer.querySelector(`[data-version="${item.version}"]`);
+        if (selectedItem) selectedItem.classList.add('selected');
+
+        // 모달 이미지 업데이트
+        const modalImage = document.getElementById('modal-image');
+        if (modalImage) modalImage.src = item.imageUrl;
+
+        // 프롬프트 업데이트
+        const promptKo = document.getElementById('modal-prompt-ko');
+        const promptEn = document.getElementById('modal-prompt-en');
+        if (promptKo) promptKo.value = item.promptKo || '';
+        if (promptEn) promptEn.value = item.promptEn || '';
+
+        console.log(`👁️ 장면 히스토리 v${item.version} 미리보기`);
     },
 
     // ✅ 장면 버전 복원 (#9)
@@ -575,6 +612,11 @@ const StoryboardManager = {
         // ✅ seed 복원 (히스토리에 저장된 경우)
         if (historyItem.seed) {
             scene.seed = historyItem.seed;
+        }
+
+        // ✅ imageBase64 재추출
+        if (historyItem.imageUrl && historyItem.imageUrl.startsWith('data:image/')) {
+            scene.imageBase64 = historyItem.imageUrl.replace(/^data:image\/\w+;base64,/, '');
         }
 
         this.renderScenes();
@@ -626,6 +668,11 @@ const StoryboardManager = {
                 seed: seed
             });
 
+            // ✅ imageBase64 추출
+            const imageBase64 = imageUrl.startsWith('data:image/')
+                ? imageUrl.replace(/^data:image\/\w+;base64,/, '')
+                : null;
+
             // 히스토리에 추가
             const version = (scene.history?.length || 0) + 1;
             if (!scene.history) scene.history = [];
@@ -639,6 +686,7 @@ const StoryboardManager = {
             });
 
             scene.imageUrl = imageUrl;
+            scene.imageBase64 = imageBase64;  // ✅ imageBase64 업데이트
             scene.promptKo = prompt.ko;
             scene.promptEn = prompt.en;
             scene.seed = seed;  // ✅ seed 업데이트
