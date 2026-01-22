@@ -469,6 +469,18 @@ try {
             e.preventDefault();
         }, false);
 
+          // ✅ 등장인물 생성 버튼 이벤트 연결
+        const generateCharactersBtn = document.getElementById('generate-characters-btn');
+        if (generateCharactersBtn) {
+            generateCharactersBtn.addEventListener('click', () => {
+                if (window.CharacterManager?.generateAllImages) {
+                    window.CharacterManager.generateAllImages();
+                } else {
+                    console.error('CharacterManager.generateAllImages를 찾을 수 없습니다');
+                }
+            });
+        }
+
         console.log('✅ 이벤트 리스너 등록 완료');
     },
 
