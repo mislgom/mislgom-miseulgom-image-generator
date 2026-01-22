@@ -435,7 +435,7 @@ async _withConcurrency(taskFn) {
         this.lastRequestTime = Date.now();
     },
 
-/**
+Copy/**
  * ✅ v2.1: Google Image Generation API로 이미지 생성 (동시성/재시도 적용)
  */
 async generateImageLocal(params) {
@@ -471,6 +471,13 @@ async generateImageLocal(params) {
                 })
             });
 
+            // 401 에러 처리 (로그인 만료)
+            if (response.status === 401) {
+                localStorage.removeItem('auth_token');
+                window.location.href = '/login.html';
+                throw new Error('로그인이 만료되었습니다');
+            }
+
             if (!response.ok) {
                 const text = await response.text();
                 throw new Error(text || `HTTP ${response.status}`);
@@ -481,45 +488,6 @@ async generateImageLocal(params) {
         })
     );
 },
-
-
-
-                if (response.status === 401) {
-                    localStorage.removeItem('auth_token');
-                    window.location.href = '/login.html';
-                    const error = new Error('로그인이 만료되었습니다');
-                    error.status = 401;
-                    throw error;
-                }
-
-                if (!response.ok) {
-                    const data = await response.json().catch(() => ({}));
-                    const originalMessage = data.error || `API 오류: ${response.status}`;
-
-                    // ✅ v2.1: 에러 정보 보존
-                    const error = new Error(originalMessage);
-                    error.status = response.status;
-                    error.originalMessage = originalMessage;
-
-                    if (response.status === 429) {
-                        error.code = 'RESOURCE_EXHAUSTED';
-                        console.error('❌ 429 Rate Limit 에러 발생:', {
-                            status: response.status,
-                            retryAfter: response.headers.get('retry-after'),
-                            originalMessage
-                        });
-                    }
-
-                    throw error;
-                }
-
-                const data = await response.json();
-                console.log('✅ 이미지 생성 완료');
-
-                return data.imageUrl;
-            })
-        );
-    },
 
     /**
      * 이미지 수정 (text-to-image 방식)
