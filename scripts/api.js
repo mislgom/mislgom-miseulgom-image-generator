@@ -482,25 +482,6 @@ async generateImageLocal(params) {
     );
 },
 
-// ✅ 동시성 제한 + 재시도 로직
-return await this._withConcurrency(() =>
-    this._retryWithBackoff(async (setResponse) => {
-        // 연속 요청 최소 간격 보장
-        await this._ensureMinInterval();
-
-        const response = await fetch('/api/generate-image', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-                    body: JSON.stringify({
-                        prompt,
-                        aspectRatio,
-                        ...(seed && { seed }),
-                        ...(referenceImages && referenceImages.length > 0 && { referenceImages })
-                    })
-                });
 
                 // 응답 객체 저장 (Retry-After 파싱용)
                 if (setResponse) setResponse(response);
