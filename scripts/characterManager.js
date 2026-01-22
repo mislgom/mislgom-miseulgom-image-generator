@@ -1,765 +1,711 @@
-/**
- * 미슬곰 이미지 자동 생성기 v1.0 - 등장인물 관리 모듈
- * 등장인물 추출, 이미지 생성, 카드 UI
- */
+// scripts/characterManager.js v2.2
+// 3회 재시도 실패 UX + seed 고정 + 부분 업데이트 최적화 + 권장 개선 반영
 
-const CharacterManager = {
-    // 상태 관리
-    state: {
-        characters: [],
-        currentEthnicity: 'korean',
-        currentStyle: 'korean-webtoon',
-        currentAspectRatio: '16:9'
-    },
-
-    // 초기화
-    init() {
-        console.log('👥 CharacterManager 초기화');
-        this.attachEventListeners();
-    },
-
-    // 비율에 따른 해상도 계산
-    getResolutionFromAspectRatio(aspectRatio) {
-        const resolutions = {
-            '1:1': { width: 1024, height: 1024 },
-            '16:9': { width: 1344, height: 768 },
-            '9:16': { width: 768, height: 1344 }
+class CharacterManager {
+    constructor() {
+        this.state = {
+            characters: [],
+            selectedCharacter: null,
+            isGenerating: false
         };
-        return resolutions[aspectRatio] || resolutions['1:1'];
-    },
-
-    // 이벤트 리스너 등록
-    attachEventListeners() {
-        // 등장인물 생성 버튼
-        const generateBtn = document.getElementById('generate-characters-btn');
-        if (generateBtn) {
-            generateBtn.addEventListener('click', () => {
-                this.generateCharacters();
-            });
-        }
-
-        // 전체 다운로드 버튼
-        const downloadImagesBtn = document.getElementById('download-characters-images-btn');
-        const downloadExcelBtn = document.getElementById('download-characters-excel-btn');
         
-        if (downloadImagesBtn) {
-            downloadImagesBtn.addEventListener('click', () => {
-                this.downloadAllImages();
-            });
-        }
-
-        if (downloadExcelBtn) {
-            downloadExcelBtn.addEventListener('click', () => {
-                this.downloadExcel();
-            });
-        }
-
-        // 인종 선택
-        const ethnicityRadios = document.querySelectorAll('input[name="ethnicity"]');
-        ethnicityRadios.forEach(radio => {
-            radio.addEventListener('change', (e) => {
-                this.state.currentEthnicity = e.target.value;
-                console.log('👤 인종 변경:', this.state.currentEthnicity);
-            });
-        });
-
-        // 스타일 선택
-        const styleRadios = document.querySelectorAll('input[name="style"]');
-        styleRadios.forEach(radio => {
-            radio.addEventListener('change', (e) => {
-                this.state.currentStyle = e.target.value;
-                console.log('🎨 스타일 변경:', this.state.currentStyle);
-            });
-        });
-
-        // 비율 선택
-        const aspectRatioSelect = document.getElementById('aspect-ratio');
-        if (aspectRatioSelect) {
-            aspectRatioSelect.addEventListener('change', (e) => {
-                this.state.currentAspectRatio = e.target.value;
-                console.log('📐 비율 변경:', this.state.currentAspectRatio);
-            });
-        }
-    },
-
-    // 등장인물 생성
-    async generateCharacters() {
-        try {
-            if (!ScriptManager.isUploaded()) {
-                UI.showToast('먼저 대본을 업로드하세요', 'error');
-                return;
-            }
-
-            // 먼저 대본 분석 필요 확인
-            if (this.state.characters.length === 0) {
-                UI.showToast('먼저 대본을 분석하여 등장인물을 추출하세요', 'error');
-                return;
-            }
-
-            UI.showToast('등장인물 이미지 생성 중...', 'info');
-            UI.showProgress('등장인물 생성 중', 0, this.state.characters.length);
-
-            // 각 등장인물 이미지 생성
-            for (let i = 0; i < this.state.characters.length; i++) {
-                const character = this.state.characters[i];
-
-                // ✅ 현재 선택된 스타일과 인종을 캐릭터에 적용
-                character.ethnicity = this.state.currentEthnicity;
-                character.style = this.state.currentStyle;
-
-                try {
-                    // 프롬프트 생성
-                    const prompt = await this.createCharacterPrompt(character);
-
-                    // ✅ 디버깅: 스타일이 prompt.en에 실제로 들어가는지 확인
-                    console.log(`🎨 [${character.name}] 스타일: ${character.style}, 인종: ${character.ethnicity}, 프롬프트:`, prompt.en.substring(0, 200));
-
-                    // ✅ 시드 생성 (캐릭터 일관성을 위해)
-                    const seed = Math.floor(Math.random() * 2147483647);
-
-                    // 이미지 생성 (API 호출) - seed 전달
-                    const imageUrl = await this.generateCharacterImage(prompt, seed);
-
-                    // ✅ imageBase64 추출 (data:image/png;base64, 접두사 제거)
-                    const imageBase64 = imageUrl.startsWith('data:image/')
-                        ? imageUrl.replace(/^data:image\/\w+;base64,/, '')
-                        : null;
-
-                    // 캐릭터 업데이트 (확장된 데이터)
-                    character.imageUrl = imageUrl;
-                    character.imageBase64 = imageBase64;  // ✅ referenceImages용
-                    character.promptKo = prompt.ko;
-                    character.promptEn = prompt.en;
-                    character.descriptionEn = character.descriptionEn || prompt.en;  // ✅ 장면 생성용
-                    character.seed = seed;  // ✅ 일관성 유지용
-                    character.generatedAt = Date.now();
-                    character.history = [{
-                        version: 1,
-                        imageUrl: imageUrl,
-                        promptKo: prompt.ko,
-                        promptEn: prompt.en,
-                        seed: seed,  // ✅ 히스토리에 seed 저장
-                        timestamp: Date.now()
-                    }];
-                    
-                    // UI 업데이트
-                    this.renderCharacters();
-                    
-                    // 진행률 업데이트
-                    UI.updateProgress(i + 1, this.state.characters.length);
-                    
-                } catch (error) {
-                    console.error(`❌ 등장인물 생성 실패 [${character.name}]:`, error);
-                    character.error = error.message;
-                }
-            }
-
-            UI.hideProgress();
-            UI.showToast(`✅ 등장인물 생성 완료! (${this.state.characters.length}명)`, 'success');
-
-            // 다운로드 버튼 활성화
-            this.enableDownloadButton();
-
-            // 스토리보드 생성 버튼 활성화
-            this.enableStoryboardButton();
-
-        } catch (error) {
-            console.error('❌ 등장인물 생성 오류:', error);
-            UI.hideProgress();
-            UI.showToast('등장인물 생성 중 오류가 발생했습니다', 'error');
-        }
-    },
-
-    // 등장인물 프롬프트 생성 - v3.0 (era 동적 처리)
-    async createCharacterPrompt(character) {
-        const { name, nameEn, description, descriptionKo, descriptionEn, era } = character;
-
-        // ✅ 현재 상태에서 스타일과 인종 가져오기 (캐릭터에 없으면 현재 상태 사용)
-        const ethnicity = character.ethnicity || this.state.currentEthnicity;
-        const style = character.style || this.state.currentStyle;
-
-        // 🆕 한글/영문 설명 우선 사용 (없으면 기존 description 사용)
-        const koDesc = descriptionKo || description;
-        const enDesc = descriptionEn || description;
-
-        // 🆕 시대 정보 (Gemini가 제공하거나 기본값 joseon)
-        const characterEra = era || 'joseon';
+        this.container = null;
+        this.onCharacterSelect = null;
+        this.onCharacterUpdate = null;
         
-        // 인종별 설명
-        const ethnicityMap = {
-            korean: 'Korean person',
-            japanese: 'Japanese person',
-            western: 'Western person (Caucasian)',
-            black: 'Black person (African descent)'
-        };
-
-        // 🆕 FLUX.1 Dev용 자연스러운 문장형 프롬프트 (시대 정보는 동적으로 추가됨)
-        const stylePromptMap = {
-            'korean-webtoon': {
-                positive: 'A digital illustration in Korean webtoon manhwa style with clean sharp outlines and vibrant colors, expressive character with detailed features, professional digital art',
-                negative: 'photorealistic, 3d render, sketch, ugly face, distorted anatomy, Chinese style, Japanese anime, modern architecture, cars, western clothing, glasses, suit, neon lights, text, watermark'
-            },
-            'folklore-illustration': {
-                positive: 'A Korean folklore storybook illustration with warm pastel tones and soft edges, hand-drawn texture with whimsical emotional atmosphere, watercolor fairy tale aesthetic',
-                negative: '3d render, photorealistic, cyberpunk, horror, dark mood, Chinese painting, Japanese ukiyo-e, modern architecture, cars, electricity, western clothing, suit, text, watermark'
-            },
-            'traditional-ink': {
-                positive: 'A Korean traditional ink wash painting in sumi-e style on Hanji paper, artistic brush strokes with ethereal atmosphere and muted colors, oriental painting aesthetic',
-                negative: 'anime, cartoon, 3d render, bright neon colors, modern style, Chinese gongbi, Japanese sumi-e, modern buildings, cars, robots, spaceships, western clothing, glasses, text, watermark'
-            },
-            'simple-2d-cartoon': {
-                positive: 'A simple 2D cartoon illustration in Korean manhwa style with flat colors and thick outlines, clean vector art with minimal shading and cute character design',
-                negative: 'realistic, 3d, detailed shading, oil painting, complex rendering, Chinese donghua, Japanese anime, modern architecture, cars, sci-fi elements, text, watermark'
-            },
-            'lyrical-anime': {
-                positive: 'Makoto Shinkai style, anime still, breathtaking scenery, beautiful lighting, lens flare, volumetric fog, highly detailed cloud and sky, sentimental atmosphere, vibrant colors, masterpiece, best quality, 8k, highres',
-                negative: 'low quality, worst quality, sketch, ugly face, distorted, bad anatomy, monochrome, grayscale, real photo, photorealistic, 3d render, Chinese donghua'
-            },
-            'action-anime': {
-                positive: 'Ufotable anime style, high contrast, dynamic angle, bold lines, intense atmosphere, cel shading, visual effects, highly detailed, masterpiece, best quality, action scene, 4k',
-                negative: 'soft, pastel, blurry, sketch, low quality, ugly, distorted, bad anatomy, watercolor, minimalist, photorealistic, real photo, Chinese donghua'
-            },
-            'documentary-photo': {
-                positive: 'A documentary photography in Korean slice of life style, candid shot with natural lighting, realistic skin texture and pores visible, cinematic lighting with shallow depth of field, shot on 35mm film',
-                negative: 'anime, cartoon, illustration, painting, 3d render, airbrushed skin, heavy makeup, plastic look, fake, Chinese photography style, Japanese photography style, text, watermark'
-            },
-            'cinematic-movie': {
-                positive: 'A cinematic movie scene with blockbuster production quality, dramatic lighting with professional color grading, shallow depth of field with highly detailed textures, photorealistic cinematography',
-                negative: 'anime, cartoon, sketch, drawing, 3d render, ugly composition, distorted perspective, amateur photography, Chinese cinema style, text, watermark'
-            },
-            'scifi-fantasy': {
-                positive: 'A sci-fi cyberpunk or high fantasy scene with futuristic elements, neon lights and advanced technology, intricate details with cinematic lighting, digital art rendering',
-                negative: 'sketch, drawing, simple background, ugly design, distorted anatomy, flat composition, Chinese sci-fi style, Japanese mecha style, text, watermark'
-            }
-        };
-
-        const ethnicityDesc = ethnicityMap[ethnicity] || ethnicityMap.korean;
-        const stylePrompt = stylePromptMap[style] || stylePromptMap['korean-webtoon'];
-
-        // 🆕 시대별 프롬프트 (조선시대/현대/미래/판타지)
-        const eraPromptMap = {
-            joseon: {
-                positive: 'set in Joseon dynasty era Korea, traditional historical setting with Korean cultural elements',
-                negative: 'modern architecture, cars, skyscrapers, contemporary clothing, glasses, suit, tie, sneakers, smartphones, modern technology'
-            },
-            modern: {
-                positive: 'set in modern contemporary Korea, present-day setting with urban elements',
-                negative: 'traditional hanbok, gat, historical clothing, sangtu hairstyle, joseon era, ancient architecture'
-            },
-            future: {
-                positive: 'set in futuristic Korea, sci-fi cyberpunk setting with advanced technology and neon lights',
-                negative: 'traditional hanbok, historical clothing, ancient architecture, rustic elements'
-            },
-            fantasy: {
-                positive: 'set in high fantasy world with magical elements, mystical atmosphere',
-                negative: 'modern technology, cars, smartphones, contemporary clothing'
-            }
-        };
-
-        const eraPrompt = eraPromptMap[characterEra] || eraPromptMap.joseon;
-
-        // 영문 프롬프트 (인물 + 시대 + 스타일)
-        const promptEn = `Portrait of ${nameEn || name}, ${ethnicityDesc}, ${enDesc}, ${eraPrompt.positive}, ${stylePrompt.positive}`;
-
-        // 네거티브 프롬프트 (시대별 + 스타일별)
-        const negativePrompt = `${eraPrompt.negative}, ${stylePrompt.negative}`;
-
-        // 한글 프롬프트
-        const styleNameMap = {
-            'korean-webtoon': '고퀄리티 웹툰',
-            'folklore-illustration': '동화 일러스트',
-            'traditional-ink': '전통 수묵화',
-            'simple-2d-cartoon': '심플 2D 만화',
-            'lyrical-anime': '감성 애니메이션',
-            'action-anime': '극화체 애니메이션',
-            'documentary-photo': '다큐멘터리 포토',
-            'cinematic-movie': '영화 실사',
-            'scifi-fantasy': '판타지/SF'
-        };
-        const styleName = styleNameMap[style] || '웹툰';
-        const promptKo = `${name}의 초상화, ${koDesc}, ${styleName} 스타일`;
-
-        return {
-            en: promptEn,
-            ko: promptKo,
-            negative: negativePrompt
-        };
-    },
-
-    // 등장인물 이미지 생성 (API 호출)
-    async generateCharacterImage(prompt, seed = null) {
-        try {
-            const imageUrl = await API.generateImageLocal({
-                prompt: prompt.en,
-                aspectRatio: this.state.currentAspectRatio,
-                ...(seed && { seed })  // ✅ seed 전달 (있을 경우만)
-            });
-            return imageUrl;
-        } catch (error) {
-            console.error('❌ 로컬 이미지 생성 실패:', error);
-            throw error;
-        }
-    },
-
-    // 등장인물 렌더링
-    renderCharacters() {
-        const container = document.getElementById('characters-container');
-        if (!container) return;
-
-        if (this.state.characters.length === 0) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-icon">👥</div>
-                    <p class="empty-title">등장인물이 없습니다</p>
-                    <p class="empty-desc">대본을 업로드하고 분석하여 등장인물을 자동으로 추출하세요</p>
-                </div>
-            `;
-            return;
-        }
-
-        container.innerHTML = '';
-        this.state.characters.forEach((character, index) => {
-            const card = this.createCharacterCard(character, index);
-            container.appendChild(card);
-        });
-    },
-
-    // 등장인물 카드 생성
-    createCharacterCard(character, index) {
-        const card = document.createElement('div');
-        card.className = 'character-card';
-        card.dataset.index = index;
-
-        // 이미지 URL (생성 전이면 placeholder)
-        const imageUrl = character.imageUrl || 'https://via.placeholder.com/300x300?text=생성+대기중';
-        const isGenerated = !!character.imageUrl;
-
-        card.innerHTML = `
-            <div class="character-image-wrapper">
-                <img src="${imageUrl}" alt="${character.name}" class="character-image">
-                ${!isGenerated ? '<div class="character-overlay"><span>생성 대기중</span></div>' : ''}
-            </div>
-            <div class="character-info">
-                <h3 class="character-name">${character.name}</h3>
-                <p class="character-name-en">${character.nameEn || ''}</p>
-                <p class="character-desc">${character.description || ''}</p>
-            </div>
-            ${isGenerated ? `
-                <div class="character-actions">
-                    <button class="btn-icon-small" title="재생성" data-action="regenerate">
-                        🔄
-                    </button>
-                    <button class="btn-icon-small" title="다운로드" data-action="download">
-                        📥
-                    </button>
-                </div>
-            ` : ''}
-        `;
-
-        // 클릭 이벤트 (이미지 상세 모달)
-        if (isGenerated) {
-            card.addEventListener('click', (e) => {
-                // 액션 버튼 클릭 시 제외
-                if (e.target.closest('.character-actions')) return;
-                
-                this.openCharacterModal(character, index);
-            });
-
-            // 액션 버튼 이벤트
-            const regenerateBtn = card.querySelector('[data-action="regenerate"]');
-            const downloadBtn = card.querySelector('[data-action="download"]');
-
-            if (regenerateBtn) {
-                regenerateBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this.regenerateCharacter(index);
-                });
-            }
-
-            if (downloadBtn) {
-                downloadBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this.downloadCharacterImage(character);
-                });
-            }
-        }
-
-        return card;
-    },
-
-    // 등장인물 상세 모달 열기
-    openCharacterModal(character, index) {
-        const modal = document.getElementById('image-detail-modal');
-        if (!modal) return;
-
-        // 모달 데이터 설정
-        modal.dataset.type = 'character';
-        modal.dataset.index = index;
-
-        // 제목
-        const title = document.getElementById('modal-title');
-        if (title) {
-            title.textContent = `${character.name} (${character.nameEn || ''})`;
-        }
-
-        // 이미지
-        const image = document.getElementById('modal-image');
-        if (image) {
-            image.src = character.imageUrl;
-            image.alt = character.name;
-        }
-
-        // 프롬프트
-        const promptKo = document.getElementById('modal-prompt-ko');
-        const promptEn = document.getElementById('modal-prompt-en');
-        if (promptKo) promptKo.value = character.promptKo || '';
-        if (promptEn) promptEn.value = character.promptEn || '';
-
-        // 수정 요청 초기화
-        const editRequest = document.getElementById('modal-edit-request');
-        if (editRequest) editRequest.value = '';
-
-        // 히스토리
-        this.renderCharacterHistory(character);
-
-        // 대본 구간 숨기기 (등장인물은 대본 구간 없음)
-        const scriptSection = document.getElementById('modal-script-section');
-        if (scriptSection) scriptSection.style.display = 'none';
-
-        // 모달 표시
-        modal.classList.add('active');
-        document.body.style.overflow = 'hidden';
-    },
-
-    // 등장인물 히스토리 렌더링
-    renderCharacterHistory(character) {
-        const historyContainer = document.getElementById('modal-history');
-        if (!historyContainer) return;
-
-        const history = character.history || [];
+        // 프로젝트 스타일 (외부에서 주입)
+        this.projectStyle = null;
         
-        if (history.length === 0) {
-            historyContainer.innerHTML = '<p class="empty-text">히스토리가 없습니다</p>';
-            return;
-        }
-
-        historyContainer.innerHTML = '';
-        history.forEach((item, index) => {
-            const historyItem = document.createElement('div');
-            historyItem.className = 'history-item';
-            historyItem.dataset.version = item.version;
-            historyItem.innerHTML = `
-                <img src="${item.imageUrl}" alt="v${item.version}" class="history-thumbnail" style="cursor: pointer;">
-                <div class="history-info">
-                    <span class="history-version">v${item.version}</span>
-                    <span class="history-date">${this.formatTimestamp(item.timestamp)}</span>
-                </div>
-                <button class="btn-icon-small" title="이 버전으로 복원" data-version="${item.version}">
-                    ↩️
-                </button>
-            `;
-
-            // ✅ 썸네일 클릭 → 미리보기 업데이트 (복원 없이 미리보기만)
-            const thumbnail = historyItem.querySelector('.history-thumbnail');
-            if (thumbnail) {
-                thumbnail.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this.previewHistoryItem(item, historyContainer);
-                });
-            }
-
-            // 복원 버튼
-            const restoreBtn = historyItem.querySelector('[data-version]');
-            if (restoreBtn) {
-                restoreBtn.addEventListener('click', () => {
-                    this.restoreCharacterVersion(character, item.version);
-                });
-            }
-
-            historyContainer.appendChild(historyItem);
-        });
-    },
-
-    // ✅ 히스토리 아이템 미리보기 (복원 없이 미리보기만)
-    previewHistoryItem(item, historyContainer) {
-        // 선택 표시 업데이트
-        const allItems = historyContainer.querySelectorAll('.history-item');
-        allItems.forEach(el => el.classList.remove('selected'));
-        const selectedItem = historyContainer.querySelector(`[data-version="${item.version}"]`);
-        if (selectedItem) selectedItem.classList.add('selected');
-
-        // 모달 이미지 업데이트
-        const modalImage = document.getElementById('modal-image');
-        if (modalImage) modalImage.src = item.imageUrl;
-
-        // 프롬프트 업데이트
-        const promptKo = document.getElementById('modal-prompt-ko');
-        const promptEn = document.getElementById('modal-prompt-en');
-        if (promptKo) promptKo.value = item.promptKo || '';
-        if (promptEn) promptEn.value = item.promptEn || '';
-
-        console.log(`👁️ 히스토리 v${item.version} 미리보기`);
-    },
-
-    // 타임스탬프 포맷
-    formatTimestamp(timestamp) {
-        const now = Date.now();
-        const diff = now - timestamp;
+        // 초기 렌더링 완료 플래그 (권장 개선 A)
+        this._isInitialRenderDone = false;
         
-        const seconds = Math.floor(diff / 1000);
-        const minutes = Math.floor(seconds / 60);
-        const hours = Math.floor(minutes / 60);
-        const days = Math.floor(hours / 24);
-
-        if (days > 0) return `${days}일 전`;
-        if (hours > 0) return `${hours}시간 전`;
-        if (minutes > 0) return `${minutes}분 전`;
-        return '방금 전';
-    },
-
-    // 등장인물 재생성 (수정사항 없이 재생성 → 새 시드)
-    async regenerateCharacter(index, modificationText = null) {
-        const character = this.state.characters[index];
-        if (!character) return;
-
-        try {
-            UI.showToast(`${character.name} 재생성 중...`, 'info');
-
-            const prompt = await this.createCharacterPrompt(character);
-
-            // ✅ 시드 분기 로직: 수정사항 있으면 기존 시드, 없으면 새 시드
-            let seed;
-            if (modificationText && modificationText.trim() !== '') {
-                // 수정사항 있음 → 기존 시드 유지
-                seed = character.seed;
-                console.log(`🔄 [${character.name}] 수정 재생성: 기존 시드 유지 (${seed})`);
-            } else {
-                // 수정사항 없음 → 새 시드 생성
-                seed = Math.floor(Math.random() * 2147483647);
-                console.log(`🔄 [${character.name}] 새 재생성: 새 시드 생성 (${seed})`);
-            }
-
-            const imageUrl = await this.generateCharacterImage(prompt, seed);
-
-            // ✅ imageBase64 추출
-            const imageBase64 = imageUrl.startsWith('data:image/')
-                ? imageUrl.replace(/^data:image\/\w+;base64,/, '')
-                : null;
-
-            // 히스토리에 추가
-            const version = (character.history?.length || 0) + 1;
-            if (!character.history) character.history = [];
-            character.history.push({
-                version: version,
-                imageUrl: imageUrl,
-                promptKo: prompt.ko,
-                promptEn: prompt.en,
-                seed: seed,  // ✅ 히스토리에 seed 저장
-                timestamp: Date.now()
-            });
-
-            // 현재 이미지 업데이트
-            character.imageUrl = imageUrl;
-            character.imageBase64 = imageBase64;  // ✅ referenceImages용
-            character.promptKo = prompt.ko;
-            character.promptEn = prompt.en;
-            character.seed = seed;  // ✅ 시드 업데이트
-
-            this.renderCharacters();
-            UI.showToast(`✅ ${character.name} 재생성 완료!`, 'success');
-
-        } catch (error) {
-            console.error('❌ 재생성 오류:', error);
-            UI.showToast('재생성 중 오류가 발생했습니다', 'error');
-        }
-    },
-
-    // 등장인물 버전 복원 - v3.0 (모달 내 실시간 업데이트)
-    restoreCharacterVersion(character, version) {
-        const historyItem = character.history.find(h => h.version === version);
-        if (!historyItem) return;
-
-        character.imageUrl = historyItem.imageUrl;
-        character.promptKo = historyItem.promptKo;
-        character.promptEn = historyItem.promptEn;
-
-        // ✅ seed 복원 (히스토리에 저장된 경우)
-        if (historyItem.seed) {
-            character.seed = historyItem.seed;
-        }
-
-        // ✅ imageBase64 재추출
-        if (historyItem.imageUrl && historyItem.imageUrl.startsWith('data:image/')) {
-            character.imageBase64 = historyItem.imageUrl.replace(/^data:image\/\w+;base64,/, '');
-        }
-
-        this.renderCharacters();
-
-        // ✅ 모달 내 이미지 및 프롬프트 실시간 업데이트
-        const modalImage = document.getElementById('modal-image');
-        const promptKo = document.getElementById('modal-prompt-ko');
-        const promptEn = document.getElementById('modal-prompt-en');
-
-        if (modalImage) modalImage.src = historyItem.imageUrl;
-        if (promptKo) promptKo.value = historyItem.promptKo || '';
-        if (promptEn) promptEn.value = historyItem.promptEn || '';
-
-        UI.showToast(`✅ v${version}로 복원되었습니다`, 'success');
-
-        // ✅ 모달은 열린 상태 유지
-    },
-
-    // 등장인물 이미지 다운로드
-    downloadCharacterImage(character) {
-        if (!character.imageUrl) return;
-
-        const link = document.createElement('a');
-        link.href = character.imageUrl;
-        link.download = `${character.name}_${character.nameEn || 'character'}.png`;
-        link.click();
-
-        UI.showToast(`${character.name} 다운로드 중...`, 'info');
-    },
-
-    // 전체 등장인물 다운로드
-    async downloadAllCharacters() {
-        try {
-            UI.showToast('등장인물 엑셀 파일 생성 중...', 'info');
-
-            // ExcelExport 모듈 호출
-            await ExcelExport.exportCharacters(this.state.characters);
-
-            UI.showToast('✅ 다운로드 완료!', 'success');
-
-        } catch (error) {
-            console.error('❌ 다운로드 오류:', error);
-            UI.showToast('다운로드 중 오류가 발생했습니다', 'error');
-        }
-    },
-
-    // 사진만 다운로드 (ZIP)
-    async downloadAllImages() {
-        try {
-            UI.showToast('등장인물 이미지 ZIP 생성 중...', 'info');
-
-            await ExcelExport.downloadCharacterImagesOnly(this.state.characters);
-
-            UI.showToast('✅ 사진 다운로드 완료!', 'success');
-
-        } catch (error) {
-            console.error('❌ 다운로드 오류:', error);
-            UI.showToast('다운로드 중 오류가 발생했습니다', 'error');
-        }
-    },
-
-    // 엑셀만 다운로드
-    async downloadExcel() {
-        try {
-            UI.showToast('등장인물 엑셀 파일 생성 중...', 'info');
-
-            await ExcelExport.exportCharactersExcelOnly(this.state.characters);
-
-            UI.showToast('✅ 엑셀 다운로드 완료!', 'success');
-
-        } catch (error) {
-            console.error('❌ 다운로드 오류:', error);
-            UI.showToast('다운로드 중 오류가 발생했습니다', 'error');
-        }
-    },
-
-    // 다운로드 버튼 활성화
-    enableDownloadButton() {
-        const downloadImagesBtn = document.getElementById('download-characters-images-btn');
-        const downloadExcelBtn = document.getElementById('download-characters-excel-btn');
-        
-        if (downloadImagesBtn) {
-            downloadImagesBtn.disabled = false;
-        }
-        
-        if (downloadExcelBtn) {
-            downloadExcelBtn.disabled = false;
-        }
-    },
-
-    // 스토리보드 버튼 활성화
-    enableStoryboardButton() {
-        const storyboardBtn = document.getElementById('generate-storyboard-btn');
-        if (storyboardBtn) {
-            storyboardBtn.disabled = false;
-        }
-    },
-
-    // 대본 분석 후 등장인물 추출
-    extractCharactersFromScript(scriptText) {
-        // 간단한 등장인물 추출 로직
-        // 실제로는 AI API로 분석
-        
-        const characters = [
-            {
-                name: '윤해린',
-                nameEn: 'Yoon Haerin',
-                description: '20대 초반 여성, 긴 검은 머리, 우아한 한복',
-                ethnicity: this.state.currentEthnicity,
-                style: this.state.currentStyle
-            },
-            {
-                name: '백도식',
-                nameEn: 'Baek Dosik',
-                description: '30대 남성, 짧은 검은 머리, 전통 한복',
-                ethnicity: this.state.currentEthnicity,
-                style: this.state.currentStyle
-            },
-            {
-                name: '나그네',
-                nameEn: 'Traveler',
-                description: '50대 남성, 회색 머리, 여행자 옷',
-                ethnicity: this.state.currentEthnicity,
-                style: this.state.currentStyle
-            }
+        // 얼굴 특징 개별 배열 (조합용)
+        this.eyesOptions = [
+            'sharp narrow eyes', 'gentle round eyes', 'deep-set eyes', 'almond-shaped eyes',
+            'wide-set eyes', 'hooded eyes', 'monolid eyes', 'downturned eyes',
+            'upturned eyes', 'close-set eyes', 'large expressive eyes', 'small intense eyes'
         ];
+        this.faceOptions = [
+            'angular jawline', 'oval face', 'square jaw', 'heart-shaped face',
+            'round face', 'long face', 'diamond face', 'triangular face',
+            'rectangular face', 'oblong face', 'soft jawline', 'prominent cheekbones'
+        ];
+        this.noseOptions = [
+            'straight nose', 'small nose', 'prominent nose', 'button nose',
+            'aquiline nose', 'upturned nose', 'flat nose', 'roman nose',
+            'narrow nose', 'wide nose', 'hooked nose', 'snub nose'
+        ];
+        this.browsOptions = [
+            'thick eyebrows', 'thin arched eyebrows', 'bushy eyebrows', 'curved eyebrows',
+            'straight eyebrows', 'feathered eyebrows', 'bold eyebrows', 'soft eyebrows',
+            'angular eyebrows', 'rounded eyebrows', 'sparse eyebrows', 'defined eyebrows'
+        ];
+    }
 
-        this.state.characters = characters;
-        this.renderCharacters();
+    /**
+     * CharacterManager 초기화
+     */
+    init(container, options = {}) {
+        this.container = container;
+        this.onCharacterSelect = options.onCharacterSelect || null;
+        this.onCharacterUpdate = options.onCharacterUpdate || null;
+        this.projectStyle = options.projectStyle || null;
+        
+        this._injectStyles();
+        this.render();
+        
+        console.log('[CharacterManager] 초기화 완료 v2.2');
+    }
 
-        // 등장인물 생성 버튼 활성화
-        const generateBtn = document.getElementById('generate-characters-btn');
-        if (generateBtn) {
-            generateBtn.disabled = false;
-        }
+    /**
+     * 프로젝트 스타일 설정
+     */
+    setProjectStyle(style) {
+        this.projectStyle = style;
+        console.log('[CharacterManager] 프로젝트 스타일 설정:', style);
+    }
 
-        UI.showToast(`✅ ${characters.length}명의 등장인물 추출됨`, 'success');
-    },
-
-    // 모든 대본에서 등장인물 추출
-    extractCharactersFromAllScripts(scripts) {
-        // 모든 대본 합치기
-        const allText = Object.values(scripts).join('\n\n');
-        this.extractCharactersFromScript(allText);
-    },
-
-    // 상태 저장
-    saveState() {
-        return {
-            characters: this.state.characters,
-            currentEthnicity: this.state.currentEthnicity,
-            currentStyle: this.state.currentStyle,
-            currentQuality: this.state.currentQuality,
-            currentAspectRatio: this.state.currentAspectRatio
-        };
-    },
-
-    // 상태 복원
-    loadState(state) {
-        if (state) {
-            this.state = state;
-            this.renderCharacters();
-            
-            if (this.state.characters.length > 0) {
-                this.enableDownloadButton();
+    /**
+     * 스타일 주입
+     */
+    _injectStyles() {
+        if (document.getElementById('character-manager-styles-v2')) return;
+        
+        const styles = document.createElement('style');
+        styles.id = 'character-manager-styles-v2';
+        styles.textContent = `
+            .character-card {
+                position: relative;
+                border: 2px solid #e0e0e0;
+                border-radius: 12px;
+                padding: 16px;
+                margin-bottom: 12px;
+                background: #fff;
+                transition: all 0.2s ease;
+                cursor: pointer;
             }
+            .character-card:hover {
+                border-color: #667eea;
+                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+            }
+            .character-card.selected {
+                border-color: #667eea;
+                background: linear-gradient(135deg, #f5f7ff 0%, #fff 100%);
+            }
+            .character-card.generating {
+                opacity: 0.7;
+                pointer-events: none;
+            }
+            .character-card.failed {
+                border-color: #e74c3c;
+                background: #fdf2f2;
+            }
+            .character-image-container {
+                width: 100%;
+                aspect-ratio: 1;
+                border-radius: 8px;
+                overflow: hidden;
+                background: #f5f5f5;
+                margin-bottom: 12px;
+                position: relative;
+            }
+            .character-image {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+            }
+            .character-image-placeholder {
+                width: 100%;
+                height: 100%;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                color: #999;
+                font-size: 14px;
+                text-align: center;
+                padding: 16px;
+            }
+            .character-image-placeholder.loading {
+                background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+                background-size: 200% 100%;
+                animation: shimmer 1.5s infinite;
+            }
+            .character-image-placeholder.error {
+                background: #fef2f2;
+                color: #dc2626;
+            }
+            @keyframes shimmer {
+                0% { background-position: -200% 0; }
+                100% { background-position: 200% 0; }
+            }
+            .character-info { text-align: center; }
+            .character-name {
+                font-weight: 600;
+                font-size: 16px;
+                color: #333;
+                margin-bottom: 4px;
+            }
+            .character-role {
+                font-size: 12px;
+                color: #666;
+                margin-bottom: 8px;
+            }
+            .character-description {
+                font-size: 11px;
+                color: #888;
+                line-height: 1.4;
+                display: -webkit-box;
+                -webkit-line-clamp: 2;
+                -webkit-box-orient: vertical;
+                overflow: hidden;
+            }
+            .character-actions {
+                display: flex;
+                gap: 8px;
+                margin-top: 12px;
+            }
+            .character-btn {
+                flex: 1;
+                padding: 8px 12px;
+                border: none;
+                border-radius: 6px;
+                font-size: 12px;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.2s ease;
+            }
+            .character-btn-primary {
+                background: #667eea;
+                color: white;
+            }
+            .character-btn-primary:hover { background: #5a6fd6; }
+            .character-btn-secondary {
+                background: #f0f0f0;
+                color: #333;
+            }
+            .character-btn-secondary:hover { background: #e0e0e0; }
+            .character-btn-retry {
+                background: #f59e0b;
+                color: white;
+            }
+            .character-btn-retry:hover { background: #d97706; }
+            .generation-progress {
+                height: 3px;
+                background: #e0e0e0;
+                border-radius: 2px;
+                margin-top: 8px;
+                overflow: hidden;
+            }
+            .generation-progress-bar {
+                height: 100%;
+                background: #667eea;
+                border-radius: 2px;
+                animation: progress 2s ease-in-out infinite;
+            }
+            @keyframes progress {
+                0% { width: 0%; }
+                50% { width: 70%; }
+                100% { width: 100%; }
+            }
+            .error-message {
+                font-size: 11px;
+                color: #dc2626;
+                margin-top: 8px;
+                padding: 8px;
+                background: #fef2f2;
+                border-radius: 4px;
+                text-align: center;
+            }
+        `;
+        document.head.appendChild(styles);
+    }
+
+    /**
+     * 안정적인 캐릭터 ID 생성 (권장 개선 C: name + role + index만 사용)
+     */
+    _generateStableId(character, index) {
+        const name = (character.name || character.nameEn || 'unknown').trim().toLowerCase();
+        const role = (character.role || 'default').trim().toLowerCase();
+        
+        // name + role + index만 사용 (변동성 있는 description/firstDialogue 제외)
+        const baseString = `${name}_${role}_${index}`;
+        return this._hashString(baseString);
+    }
+
+    /**
+     * 문자열 해시 함수
+     */
+    _hashString(str) {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash;
+        }
+        return 'char_' + Math.abs(hash).toString(36);
+    }
+
+    /**
+     * characterId 기반 seed 생성
+     */
+    _generateSeedFromId(characterId) {
+        if (!characterId) return Math.floor(Math.random() * 2147483647);
+        
+        let hash = 0;
+        for (let i = 0; i < characterId.length; i++) {
+            const char = characterId.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash;
+        }
+        return Math.abs(hash) % 2147483647;
+    }
+
+    /**
+     * 캐릭터별 고유 얼굴 특징 조합 생성
+     */
+    _generateFaceFeatures(characterId) {
+        const seed = this._generateSeedFromId(characterId);
+        
+        // 각 특징을 다른 인덱스로 조합
+        const eyesIndex = seed % this.eyesOptions.length;
+        const faceIndex = Math.floor(seed / 7) % this.faceOptions.length;
+        const noseIndex = Math.floor(seed / 13) % this.noseOptions.length;
+        const browsIndex = Math.floor(seed / 19) % this.browsOptions.length;
+        
+        return {
+            eyes: this.eyesOptions[eyesIndex],
+            face: this.faceOptions[faceIndex],
+            nose: this.noseOptions[noseIndex],
+            brows: this.browsOptions[browsIndex]
+        };
+    }
+
+    /**
+     * 얼굴 스펙 포함 프롬프트 생성
+     */
+    _buildPromptWithFaceSpec(character, options = {}) {
+        // Gemini가 생성한 얼굴 스펙이 있으면 사용, 없으면 자동 생성
+        const faceSpec = character.faceSpec || this._generateFaceFeatures(character.id);
+        
+        // 고정 요소: 얼굴 특징
+        const fixedFeatures = `${faceSpec.eyes}, ${faceSpec.face}, ${faceSpec.nose}, ${faceSpec.brows}`;
+        
+        // 공통 요소: 프로젝트 스타일 (외부 주입 또는 neutral)
+        const style = this.projectStyle || character.style || '';
+        const era = character.era || '';
+        
+        // 가변 요소: 감정/포즈/조명
+        const emotion = options.emotion || character.defaultEmotion || 'neutral expression';
+        const pose = options.pose || 'front facing portrait';
+        const lighting = options.lighting || 'soft lighting';
+        
+        // 기본 설명
+        const baseDescription = character.description || character.name;
+        
+        // 프롬프트 조합 (빈 값 제외)
+        const promptParts = [
+            baseDescription,
+            fixedFeatures,
+            emotion,
+            pose,
+            lighting,
+            era,
+            style
+        ].filter(part => part && part.trim());
+        
+        return promptParts.join(', ');
+    }
+
+    /**
+     * 캐릭터 목록 설정
+     */
+    setCharacters(characters) {
+        this.state.characters = characters.map((char, index) => {
+            // 안정적인 ID 생성 (기존 ID가 있으면 유지)
+            const stableId = char.id || this._generateStableId(char, index);
+            
+            return {
+                ...char,
+                id: stableId,
+                imageUrl: char.imageUrl || null,
+                imageStatus: char.imageStatus || 'pending',
+                lastError: null,
+                seed: char.seed || this._generateSeedFromId(stableId),
+                faceSpec: char.faceSpec || null
+            };
+        });
+        
+        this.render();
+        console.log('[CharacterManager] 캐릭터 설정:', this.state.characters.length, '명');
+    }
+
+    /**
+     * 캐릭터 목록 반환
+     */
+    getCharacters() {
+        return this.state.characters;
+    }
+
+    /**
+     * 캐릭터 선택
+     */
+    selectCharacter(characterId) {
+        const prevSelected = this.state.selectedCharacter;
+        this.state.selectedCharacter = characterId;
+        
+        // 부분 업데이트: 이전 선택과 새 선택만 업데이트
+        if (prevSelected && this._isInitialRenderDone) {
+            this._updateCardElement(prevSelected);
+        }
+        if (this._isInitialRenderDone) {
+            this._updateCardElement(characterId);
+        }
+        
+        const character = this.state.characters.find(c => c.id === characterId);
+        if (character && this.onCharacterSelect) {
+            this.onCharacterSelect(character);
         }
     }
-};
 
-// 전역 함수로 노출
-window.CharacterManager = CharacterManager;
+    /**
+     * 캐릭터 이미지 생성 (재시도는 API에서 처리, 여기서는 1회 호출만)
+     */
+    async generateCharacterImage(characterId, options = {}) {
+        const character = this.state.characters.find(c => c.id === characterId);
+        if (!character) {
+            console.error('[CharacterManager] 캐릭터를 찾을 수 없음:', characterId);
+            return null;
+        }
+        
+        // 이미 생성 중이면 무시
+        if (character.imageStatus === 'generating') {
+            console.log('[CharacterManager] 이미 생성 중:', character.name);
+            return null;
+        }
+        
+        // 상태 업데이트: 생성 중 (부분 업데이트)
+        this._updateCharacterData(characterId, {
+            imageStatus: 'generating',
+            lastError: null
+        });
+        
+        try {
+            // seed 고정 (characterId 기반)
+            const seed = character.seed;
+            
+            // 얼굴 스펙 포함 프롬프트 생성
+            const prompt = this._buildPromptWithFaceSpec(character, options);
+            
+            console.log('[CharacterManager] 이미지 생성 시작:', character.name);
+            console.log('[CharacterManager] Prompt:', prompt);
+            console.log('[CharacterManager] Seed:', seed);
+            
+            // 체크포인트 1: window.API.generateImage() 호출로 통일
+            // API 내부에서 3회 재시도 수행, 여기서는 1회 호출만
+            const result = await window.API.generateImage({
+                prompt: prompt,
+                aspectRatio: options.aspectRatio || '1:1',
+                seed: seed,
+                referenceImages: options.referenceImages || null
+            });
+            
+            // generateImage()는 { imageUrl } 또는 에러를 반환
+            if (result && result.imageUrl) {
+                // 성공: 이미지 URL 업데이트 (부분 업데이트)
+                this._updateCharacterData(characterId, {
+                    imageUrl: result.imageUrl,
+                    imageStatus: 'completed',
+                    lastError: null
+                });
+                
+                console.log('[CharacterManager] 이미지 생성 완료:', character.name);
+                
+                // 권장 개선 B: find()로 최신 객체 조회하여 전달
+                if (this.onCharacterUpdate) {
+                    const updatedCharacter = this.state.characters.find(c => c.id === characterId);
+                    if (updatedCharacter) {
+                        this.onCharacterUpdate(updatedCharacter);
+                    }
+                }
+                
+                return result.imageUrl;
+            } else {
+                // 실패 응답
+                throw new Error(result?.error || '이미지 생성 실패');
+            }
+            
+        } catch (error) {
+            console.error('[CharacterManager] 이미지 생성 오류:', error);
+            
+            // 체크포인트 2: 실패 시 즉시 failed 상태로 전환
+            // API에서 이미 3회 재시도 완료 후 실패한 것이므로 바로 failed
+            let shortError = error.message || '알 수 없는 오류';
+            if (shortError.length > 50) {
+                shortError = shortError.substring(0, 47) + '...';
+            }
+            
+            this._updateCharacterData(characterId, {
+                imageStatus: 'failed',
+                lastError: shortError
+            });
+            
+            return null;
+        }
+    }
+
+    /**
+     * 캐릭터 이미지 재시도 (사용자 버튼 클릭 시 1회만 호출)
+     */
+    async retryCharacterImage(characterId) {
+        // 체크포인트 2: 버튼 클릭 시 generateCharacterImage 1회만 호출
+        // API 내부에서 3회 재시도 수행
+        await this.generateCharacterImage(characterId);
+    }
+
+    /**
+     * 캐릭터 데이터 업데이트 (상태만, 렌더링은 별도)
+     */
+    _updateCharacterData(characterId, updates) {
+        const index = this.state.characters.findIndex(c => c.id === characterId);
+        if (index !== -1) {
+            this.state.characters[index] = {
+                ...this.state.characters[index],
+                ...updates
+            };
+            // 체크포인트 4: 부분 업데이트
+            this._updateCardElement(characterId);
+        }
+    }
+
+    /**
+     * 체크포인트 4 + 권장 개선 A: 개별 카드 DOM 업데이트 (부분 렌더링)
+     */
+    _updateCardElement(characterId) {
+        // 권장 개선 A: 초기 렌더링 전이면 조용히 return
+        if (!this._isInitialRenderDone) {
+            return;
+        }
+        
+        const cardElement = this.container?.querySelector(`[data-character-id="${characterId}"]`);
+        if (!cardElement) {
+            // 카드가 없으면 조용히 return (상위에서 render 호출 책임)
+            console.warn('[CharacterManager] 카드 요소를 찾을 수 없음:', characterId);
+            return;
+        }
+        
+        const character = this.state.characters.find(c => c.id === characterId);
+        if (!character) return;
+        
+        const index = this.state.characters.findIndex(c => c.id === characterId);
+        const newCardHtml = this._renderCharacterCard(character, index);
+        
+        // 임시 컨테이너로 HTML 파싱
+        const temp = document.createElement('div');
+        temp.innerHTML = newCardHtml;
+        const newCard = temp.firstElementChild;
+        
+        // 기존 카드 교체
+        cardElement.replaceWith(newCard);
+    }
+
+    /**
+     * 모든 캐릭터 이미지 일괄 생성
+     */
+    async generateAllImages(options = {}) {
+        const pendingCharacters = this.state.characters.filter(
+            c => c.imageStatus === 'pending' || c.imageStatus === 'failed'
+        );
+        
+        if (pendingCharacters.length === 0) {
+            console.log('[CharacterManager] 생성할 이미지가 없습니다.');
+            return;
+        }
+        
+        console.log('[CharacterManager] 일괄 생성 시작:', pendingCharacters.length, '개');
+        
+        // 순차 처리 (동시성은 api.js의 큐에서 관리)
+        for (const character of pendingCharacters) {
+            await this.generateCharacterImage(character.id, options);
+        }
+        
+        console.log('[CharacterManager] 일괄 생성 완료');
+    }
+
+    /**
+     * 캐릭터 카드 HTML 생성
+     */
+    _renderCharacterCard(character, index) {
+        const isSelected = this.state.selectedCharacter === character.id;
+        const isGenerating = character.imageStatus === 'generating';
+        const isFailed = character.imageStatus === 'failed';
+        
+        let cardClass = 'character-card';
+        if (isSelected) cardClass += ' selected';
+        if (isGenerating) cardClass += ' generating';
+        if (isFailed) cardClass += ' failed';
+        
+        // 이미지 영역
+        let imageContent = '';
+        if (character.imageUrl && character.imageStatus === 'completed') {
+            imageContent = `<img src="${character.imageUrl}" alt="${character.name}" class="character-image">`;
+        } else if (isGenerating) {
+            imageContent = `
+                <div class="character-image-placeholder loading">
+                    <span>이미지 생성 중...</span>
+                    <div class="generation-progress">
+                        <div class="generation-progress-bar"></div>
+                    </div>
+                </div>
+            `;
+        } else if (isFailed) {
+            imageContent = `
+                <div class="character-image-placeholder error">
+                    <span>생성 실패</span>
+                </div>
+            `;
+        } else {
+            imageContent = `
+                <div class="character-image-placeholder">
+                    <span>이미지 대기 중</span>
+                </div>
+            `;
+        }
+        
+        // 에러 메시지 (실패 시)
+        let errorSection = '';
+        if (isFailed && character.lastError) {
+            errorSection = `<div class="error-message">${character.lastError}</div>`;
+        }
+        
+        // 버튼 영역
+        let actionsHtml = '';
+        if (isFailed) {
+            // 체크포인트 2: 실패 시 재시도 버튼만 제공
+            actionsHtml = `
+                <div class="character-actions">
+                    <button class="character-btn character-btn-retry" onclick="event.stopPropagation(); window.CharacterManager.retryCharacterImage('${character.id}')">
+                        재시도
+                    </button>
+                </div>
+            `;
+        } else if (!isGenerating && character.imageStatus !== 'completed') {
+            actionsHtml = `
+                <div class="character-actions">
+                    <button class="character-btn character-btn-primary" onclick="event.stopPropagation(); window.CharacterManager.generateCharacterImage('${character.id}')">
+                        이미지 생성
+                    </button>
+                </div>
+            `;
+        } else if (character.imageStatus === 'completed') {
+            actionsHtml = `
+                <div class="character-actions">
+                    <button class="character-btn character-btn-secondary" onclick="event.stopPropagation(); window.CharacterManager.generateCharacterImage('${character.id}')">
+                        재생성
+                    </button>
+                </div>
+            `;
+        }
+        
+        return `
+            <div class="${cardClass}" data-character-id="${character.id}" onclick="window.CharacterManager.selectCharacter('${character.id}')">
+                <div class="character-image-container">
+                    ${imageContent}
+                </div>
+                <div class="character-info">
+                    <div class="character-name">${character.name || '이름 없음'}</div>
+                    <div class="character-role">${character.role || ''}</div>
+                    <div class="character-description">${character.description || ''}</div>
+                </div>
+                ${errorSection}
+                ${actionsHtml}
+            </div>
+        `;
+    }
+
+    /**
+     * 전체 렌더링
+     */
+    render() {
+        if (!this.container) return;
+        
+        if (this.state.characters.length === 0) {
+            this.container.innerHTML = `
+                <div class="character-empty" style="text-align: center; padding: 40px; color: #666;">
+                    <p>등록된 캐릭터가 없습니다.</p>
+                    <p style="font-size: 12px; color: #999;">대본을 분석하면 캐릭터가 자동으로 추출됩니다.</p>
+                </div>
+            `;
+            this._isInitialRenderDone = true;
+            return;
+        }
+        
+        const cardsHtml = this.state.characters
+            .map((char, index) => this._renderCharacterCard(char, index))
+            .join('');
+        
+        this.container.innerHTML = `
+            <div class="character-list">
+                ${cardsHtml}
+            </div>
+            <div class="character-actions-global" style="margin-top: 16px;">
+                <button class="character-btn character-btn-primary" style="width: 100%;" onclick="window.CharacterManager.generateAllImages()">
+                    모든 캐릭터 이미지 생성
+                </button>
+            </div>
+        `;
+        
+        // 권장 개선 A: 초기 렌더링 완료 플래그 설정
+        this._isInitialRenderDone = true;
+    }
+
+    /**
+     * 상태 초기화
+     */
+    reset() {
+        this.state = {
+            characters: [],
+            selectedCharacter: null,
+            isGenerating: false
+        };
+        this._isInitialRenderDone = false;
+        this.render();
+        console.log('[CharacterManager] 상태 초기화됨');
+    }
+
+    /**
+     * Gemini 분석 결과에서 얼굴 스펙 설정
+     */
+    setFaceSpecsFromGemini(faceSpecs) {
+        if (!Array.isArray(faceSpecs)) return;
+        
+        faceSpecs.forEach((spec, index) => {
+            if (index < this.state.characters.length && spec) {
+                const characterId = this.state.characters[index].id;
+                const defaultFeatures = this._generateFaceFeatures(characterId);
+                
+                this.state.characters[index].faceSpec = {
+                    eyes: spec.eyes || defaultFeatures.eyes,
+                    face: spec.face || defaultFeatures.face,
+                    nose: spec.nose || defaultFeatures.nose,
+                    brows: spec.brows || defaultFeatures.brows
+                };
+            }
+        });
+        
+        console.log('[CharacterManager] Gemini 얼굴 스펙 설정 완료');
+        
+        // 초기 렌더링 완료 후에만 전체 렌더링
+        if (this._isInitialRenderDone) {
+            this.render();
+        }
+    }
+}
+
+// 전역 인스턴스 생성
+window.CharacterManager = new CharacterManager();
+
+// 모듈 내보내기 (ES6 환경용)
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = CharacterManager;
+}
