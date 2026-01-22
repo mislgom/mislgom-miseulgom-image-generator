@@ -1,7 +1,9 @@
 /**
- * 미슬곰 이미지 자동 생성기 v1.1 - 대본 관리 모듈
+ * 미슬곰 이미지 자동 생성기 v1.3 - 대본 관리 모듈
  * 파트별 대본 입력, 파트 수 선택, 탭 전환, AI 분석
  * v1.1: 분석 결과 저장/복원 개선, API 중복 호출 방지
+ * v1.2: 분석 완료 후 자동 저장 추가
+ * v1.3: 새 프로젝트 시 대본 텍스트 초기화 추가
  */
 
 const ScriptManager = {
@@ -68,7 +70,7 @@ const ScriptManager = {
             });
         });
 
-        // 종합 대본 분석 버튼 - ✅ 여기서만 등록 (app.js에서 중복 등록 제거 필요)
+        // 종합 대본 분석 버튼 - ✅ 여기서만 등록 (app.js에서 중복 등록 제거됨)
         const analyzeBtn = document.getElementById('analyze-script-btn');
         if (analyzeBtn) {
             analyzeBtn.addEventListener('click', () => {
@@ -324,7 +326,18 @@ const ScriptManager = {
         this.state.scripts[part] = textarea.value;
     },
 
-    // ✅ 전체 대본 분석 - v1.1 (저장된 결과 재사용)
+    // ✅ v1.2: 자동 저장 트리거
+    triggerAutoSave() {
+        if (window.App && typeof App.saveProject === 'function') {
+            console.log('💾 프로젝트 자동 저장 중...');
+            App.saveProject();
+            console.log('✅ 프로젝트 자동 저장 완료');
+        } else {
+            console.warn('⚠️ App.saveProject() 함수를 찾을 수 없습니다');
+        }
+    },
+
+    // ✅ 전체 대본 분석 - v1.2 (저장된 결과 재사용 + 자동 저장)
     async analyzeAllScripts() {
         try {
             // 입력된 대본 확인
@@ -373,6 +386,9 @@ const ScriptManager = {
 
             // 분석 결과 모달 표시
             this.showAnalysisModal(analysisResult);
+
+            // ✅ v1.2: 분석 완료 후 자동 저장
+            this.triggerAutoSave();
 
             console.log('📊 대본 분석 완료:', analysisResult);
 
@@ -569,6 +585,9 @@ const ScriptManager = {
         if (generateBtn) {
             generateBtn.disabled = false;
         }
+
+        // ✅ v1.2: 이미지 수 확정 후에도 자동 저장
+        this.triggerAutoSave();
 
         console.log('✅ 이미지 수 확정:', this.state.analysisResult);
     },
@@ -786,7 +805,7 @@ const ScriptManager = {
         }
     },
 
-   // ✅ 분석 상태 초기화 (새 프로젝트 시 사용) - v1.3
+    // ✅ 분석 상태 초기화 (새 프로젝트 시 사용) - v1.3
     resetAnalysis() {
         // 분석 상태 초기화
         this.state.isAnalyzed = false;
