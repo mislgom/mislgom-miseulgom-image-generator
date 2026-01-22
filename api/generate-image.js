@@ -55,7 +55,7 @@ export default async function handler(req, res) {
             });
         }
 
-        const { prompt, aspectRatio = '1:1' } = req.body;
+        const { prompt, aspectRatio = '1:1', seed, referenceImages } = req.body;
         if (!prompt) {
             return res.status(400).json({ error: 'prompt is required' });
         }
@@ -66,7 +66,8 @@ export default async function handler(req, res) {
         const imageUrl = await generateWithVertexAI(
             prompt,
             aspectRatio,
-            apiSettings.projectId
+            apiSettings.projectId,
+            { seed, referenceImages }
         );
 
         await incrementQuota(decoded.username);
@@ -96,9 +97,14 @@ export default async function handler(req, res) {
 }
 
 /**
- * Vertex AI Imagen 4 Fast
+ * Vertex AI Imagen 3.0 Capability (referenceImages 지원)
+ * @param {string} prompt - 이미지 생성 프롬프트
+ * @param {string} aspectRatio - 이미지 비율
+ * @param {string} projectId - GCP 프로젝트 ID
+ * @param {Object} options - 추가 옵션 { seed, referenceImages }
  */
-async function generateWithVertexAI(prompt, aspectRatio, projectId) {
+async function generateWithVertexAI(prompt, aspectRatio, projectId, options = {}) {
+    const { seed, referenceImages } = options;
     const serviceAccountKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
     if (!serviceAccountKey) {
         throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY 환경 변수가 설정되지 않았습니다');
@@ -120,7 +126,7 @@ async function generateWithVertexAI(prompt, aspectRatio, projectId) {
 
     const endpoint =
         `https://us-central1-aiplatform.googleapis.com/v1/projects/${projectId}` +
-        `/locations/us-central1/publishers/google/models/imagen-4.0-fast-generate-001:predict`;
+        `/locations/us-central1/publishers/google/models/imagen-3.0-capability-001:predict`;
 
     const response = await fetch(endpoint, {
         method: 'POST',
@@ -129,10 +135,30 @@ async function generateWithVertexAI(prompt, aspectRatio, projectId) {
             'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-            instances: [{ prompt }],
+            instances: [{
+                prompt,
+                // referenceImages가 있으면 Vertex AI 형식으로 변환하여 추가
+                ...(referenceImages && referenceImages.length > 0 && {
+                    referenceImages: referenceImages.map(ref => ({
+                        referenceType: 'REFERENCE_TYPE_SUBJECT',
+                        referenceId: ref.referenceId,
+                        referenceImage: {
+                            bytesBase64Encoded: ref.imageBase64
+                        },
+                        subjectImageConfig: {
+                            subjectDescription: ref.description,
+                            subjectType: 'SUBJECT_TYPE_PERSON'
+                        }
+                    }))
+                })
+            }],
             parameters: {
                 sampleCount: 1,
-                aspectRatio
+                aspectRatio,
+                // seed 사용 시 addWatermark: false 필수, enhancePrompt: false 권장
+                ...(seed && { seed }),
+                addWatermark: false,
+                enhancePrompt: false
             }
         })
     });

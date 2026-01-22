@@ -782,6 +782,18 @@
     border-color: var(--accent-primary);
 }
 
+/* ✅ 히스토리 아이템 선택 상태 */
+.history-item.selected {
+    border-color: var(--accent-primary);
+    background: rgba(99, 102, 241, 0.1);
+    box-shadow: 0 0 0 2px var(--accent-primary);
+}
+
+.history-item.selected .history-thumbnail {
+    border: 2px solid var(--accent-primary);
+    border-radius: 6px;
+}
+
 .history-thumbnail {
     width: 60px;
     height: 60px;

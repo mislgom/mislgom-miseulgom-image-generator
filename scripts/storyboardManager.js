@@ -81,27 +81,44 @@ const StoryboardManager = {
                         // 프롬프트 생성
                         const prompt = await this.createScenePrompt(segment);
 
-                        // 이미지 생성
-                        const imageUrl = await this.generateSceneImage(prompt);
+                        // ✅ 장면에 등장하는 캐릭터 감지
+                        const sceneCharacters = this.detectCharactersInSegment(segment.fullText);
 
-                        // 장면 추가
+                        // ✅ 시드 생성
+                        const seed = Math.floor(Math.random() * 2147483647);
+
+                        // 이미지 생성 (캐릭터 참조 이미지 전달)
+                        const imageUrl = await this.generateSceneImage(prompt, {
+                            characters: sceneCharacters,
+                            seed: seed
+                        });
+
+                        // ✅ imageBase64 추출 (수정 요청 시 참조용)
+                        const imageBase64 = imageUrl.startsWith('data:image/')
+                            ? imageUrl.replace(/^data:image\/\w+;base64,/, '')
+                            : null;
+
+                        // 장면 추가 (확장된 데이터)
                         const scene = {
                             id: `scene_${Date.now()}_${sceneIndex}`,
                             partNumber: segment.partNumber,
                             segmentNumber: segment.segmentNumber,
                             imageUrl: imageUrl,
+                            imageBase64: imageBase64,  // ✅ imageBase64 저장
                             promptKo: prompt.ko,
                             promptEn: prompt.en,
                             scriptText: segment.fullText,
                             startSentence: segment.startSentence,
                             endSentence: segment.endSentence,
-                            characters: this.detectCharactersInSegment(segment.fullText),
+                            characters: sceneCharacters,
+                            seed: seed,  // ✅ seed 저장
                             generatedAt: Date.now(),
                             history: [{
                                 version: 1,
                                 imageUrl: imageUrl,
                                 promptKo: prompt.ko,
                                 promptEn: prompt.en,
+                                seed: seed,  // ✅ 히스토리에 seed 저장
                                 timestamp: Date.now()
                             }]
                         };
@@ -332,13 +349,32 @@ const StoryboardManager = {
         return keywords.join(', ');
     },
 
-    // 장면 이미지 생성
-    async generateSceneImage(prompt) {
+    // 장면 이미지 생성 (referenceImages 지원)
+    async generateSceneImage(prompt, options = {}) {
         try {
+            const { characters = [], seed = null } = options;
+
+            // ✅ referenceImages 구성 (등장 캐릭터의 이미지를 참조 이미지로 전달)
+            let referenceImages = [];
+            if (characters.length > 0) {
+                referenceImages = characters
+                    .filter(char => char.imageBase64)  // base64가 있는 캐릭터만
+                    .map((char, index) => ({
+                        referenceId: index + 1,
+                        imageBase64: char.imageBase64,
+                        description: char.descriptionEn || char.description || char.nameEn
+                    }));
+
+                if (referenceImages.length > 0) {
+                    console.log(`📷 ${referenceImages.length}명의 캐릭터 참조 이미지 전달`);
+                }
+            }
+
             const imageUrl = await API.generateImageLocal({
                 prompt: prompt.en,
-                negative_prompt: prompt.negative,
-                aspectRatio: CharacterManager.state.currentAspectRatio  // ✅ aspectRatio 전달
+                aspectRatio: CharacterManager.state.currentAspectRatio,
+                ...(seed && { seed }),
+                ...(referenceImages.length > 0 && { referenceImages })
             });
             return imageUrl;
         } catch (error) {
@@ -494,13 +530,13 @@ const StoryboardManager = {
         document.body.style.overflow = 'hidden';
     },
 
-    // 장면 히스토리 렌더링
+    // 장면 히스토리 렌더링 (복원 버튼 포함)
     renderSceneHistory(scene) {
         const historyContainer = document.getElementById('modal-history');
         if (!historyContainer) return;
 
         const history = scene.history || [];
-        
+
         if (history.length === 0) {
             historyContainer.innerHTML = '<p class="empty-text">히스토리가 없습니다</p>';
             return;
@@ -510,20 +546,95 @@ const StoryboardManager = {
         history.forEach((item) => {
             const historyItem = document.createElement('div');
             historyItem.className = 'history-item';
+            historyItem.dataset.version = item.version;
             historyItem.innerHTML = `
-                <img src="${item.imageUrl}" alt="v${item.version}" class="history-thumbnail">
+                <img src="${item.imageUrl}" alt="v${item.version}" class="history-thumbnail" style="cursor: pointer;">
                 <div class="history-info">
                     <span class="history-version">v${item.version}</span>
                     <span class="history-date">${CharacterManager.formatTimestamp(item.timestamp)}</span>
                 </div>
+                <button class="btn-icon-small" title="이 버전으로 복원" data-version="${item.version}">
+                    ↩️
+                </button>
             `;
+
+            // ✅ 썸네일 클릭 → 미리보기 업데이트 (복원 없이 미리보기만)
+            const thumbnail = historyItem.querySelector('.history-thumbnail');
+            if (thumbnail) {
+                thumbnail.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.previewHistoryItem(item, historyContainer);
+                });
+            }
+
+            // ✅ 복원 버튼 이벤트
+            const restoreBtn = historyItem.querySelector('[data-version]');
+            if (restoreBtn) {
+                restoreBtn.addEventListener('click', () => {
+                    this.restoreSceneVersion(scene, item.version);
+                });
+            }
 
             historyContainer.appendChild(historyItem);
         });
     },
 
-    // 장면 재생성
-    async regenerateScene(sceneId) {
+    // ✅ 히스토리 아이템 미리보기 (복원 없이 미리보기만)
+    previewHistoryItem(item, historyContainer) {
+        // 선택 표시 업데이트
+        const allItems = historyContainer.querySelectorAll('.history-item');
+        allItems.forEach(el => el.classList.remove('selected'));
+        const selectedItem = historyContainer.querySelector(`[data-version="${item.version}"]`);
+        if (selectedItem) selectedItem.classList.add('selected');
+
+        // 모달 이미지 업데이트
+        const modalImage = document.getElementById('modal-image');
+        if (modalImage) modalImage.src = item.imageUrl;
+
+        // 프롬프트 업데이트
+        const promptKo = document.getElementById('modal-prompt-ko');
+        const promptEn = document.getElementById('modal-prompt-en');
+        if (promptKo) promptKo.value = item.promptKo || '';
+        if (promptEn) promptEn.value = item.promptEn || '';
+
+        console.log(`👁️ 장면 히스토리 v${item.version} 미리보기`);
+    },
+
+    // ✅ 장면 버전 복원 (#9)
+    restoreSceneVersion(scene, version) {
+        const historyItem = scene.history.find(h => h.version === version);
+        if (!historyItem) return;
+
+        scene.imageUrl = historyItem.imageUrl;
+        scene.promptKo = historyItem.promptKo;
+        scene.promptEn = historyItem.promptEn;
+
+        // ✅ seed 복원 (히스토리에 저장된 경우)
+        if (historyItem.seed) {
+            scene.seed = historyItem.seed;
+        }
+
+        // ✅ imageBase64 재추출
+        if (historyItem.imageUrl && historyItem.imageUrl.startsWith('data:image/')) {
+            scene.imageBase64 = historyItem.imageUrl.replace(/^data:image\/\w+;base64,/, '');
+        }
+
+        this.renderScenes();
+
+        // ✅ 모달 내 이미지 및 프롬프트 실시간 업데이트
+        const modalImage = document.getElementById('modal-image');
+        const promptKo = document.getElementById('modal-prompt-ko');
+        const promptEn = document.getElementById('modal-prompt-en');
+
+        if (modalImage) modalImage.src = historyItem.imageUrl;
+        if (promptKo) promptKo.value = historyItem.promptKo || '';
+        if (promptEn) promptEn.value = historyItem.promptEn || '';
+
+        UI.showToast(`✅ v${version}로 복원되었습니다`, 'success');
+    },
+
+    // 장면 재생성 (수정사항 없이 재생성 → 새 시드)
+    async regenerateScene(sceneId, modificationText = null) {
         const scene = this.state.scenes.find(s => s.id === sceneId);
         if (!scene) return;
 
@@ -536,7 +647,31 @@ const StoryboardManager = {
             };
 
             const prompt = await this.createScenePrompt(segment);
-            const imageUrl = await this.generateSceneImage(prompt);
+
+            // ✅ 장면에 등장하는 캐릭터 감지
+            const sceneCharacters = scene.characters || this.detectCharactersInSegment(scene.scriptText);
+
+            // ✅ 시드 분기 로직: 수정사항 있으면 기존 시드, 없으면 새 시드
+            let seed;
+            if (modificationText && modificationText.trim() !== '') {
+                // 수정사항 있음 → 기존 시드 유지
+                seed = scene.seed;
+                console.log(`🔄 [장면] 수정 재생성: 기존 시드 유지 (${seed})`);
+            } else {
+                // 수정사항 없음 → 새 시드 생성
+                seed = Math.floor(Math.random() * 2147483647);
+                console.log(`🔄 [장면] 새 재생성: 새 시드 생성 (${seed})`);
+            }
+
+            const imageUrl = await this.generateSceneImage(prompt, {
+                characters: sceneCharacters,
+                seed: seed
+            });
+
+            // ✅ imageBase64 추출
+            const imageBase64 = imageUrl.startsWith('data:image/')
+                ? imageUrl.replace(/^data:image\/\w+;base64,/, '')
+                : null;
 
             // 히스토리에 추가
             const version = (scene.history?.length || 0) + 1;
@@ -546,12 +681,15 @@ const StoryboardManager = {
                 imageUrl: imageUrl,
                 promptKo: prompt.ko,
                 promptEn: prompt.en,
+                seed: seed,  // ✅ 히스토리에 seed 저장
                 timestamp: Date.now()
             });
 
             scene.imageUrl = imageUrl;
+            scene.imageBase64 = imageBase64;  // ✅ imageBase64 업데이트
             scene.promptKo = prompt.ko;
             scene.promptEn = prompt.en;
+            scene.seed = seed;  // ✅ seed 업데이트
 
             this.renderScenes();
             UI.showToast('✅ 장면 재생성 완료!', 'success');
