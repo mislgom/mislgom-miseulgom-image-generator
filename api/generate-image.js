@@ -1,5 +1,6 @@
 /**
  * 이미지 생성 API (Vertex AI 전용)
+ * v2.0 - 모델 조건부 선택 + capability 실패 시 폴백
  */
 
 import jwt from 'jsonwebtoken';
@@ -97,14 +98,87 @@ export default async function handler(req, res) {
 }
 
 /**
- * Vertex AI Imagen 3.0 Capability (referenceImages 지원)
- * @param {string} prompt - 이미지 생성 프롬프트
+ * Vertex AI Imagen API 호출 함수
+ * @param {string} modelId - 모델 ID
+ * @param {string} prompt - 프롬프트
  * @param {string} aspectRatio - 이미지 비율
  * @param {string} projectId - GCP 프로젝트 ID
- * @param {Object} options - 추가 옵션 { seed, referenceImages }
+ * @param {string} token - OAuth 토큰
+ * @param {Object} options - { seed, referenceImages }
+ */
+async function callImagen(modelId, prompt, aspectRatio, projectId, token, options = {}) {
+    const { seed, referenceImages } = options;
+
+    const endpoint =
+        `https://us-central1-aiplatform.googleapis.com/v1/projects/${projectId}` +
+        `/locations/us-central1/publishers/google/models/${modelId}:predict`;
+
+    const requestBody = {
+        instances: [{
+            prompt,
+            // referenceImages가 있으면 Vertex AI 형식으로 변환
+            ...(referenceImages && referenceImages.length > 0 && {
+                referenceImages: referenceImages.map(ref => ({
+                    referenceType: 'REFERENCE_TYPE_SUBJECT',
+                    referenceId: ref.referenceId,
+                    referenceImage: {
+                        bytesBase64Encoded: ref.imageBase64
+                    },
+                    subjectImageConfig: {
+                        subjectDescription: ref.description,
+                        subjectType: 'SUBJECT_TYPE_PERSON'
+                    }
+                }))
+            })
+        }],
+        parameters: {
+            sampleCount: 1,
+            aspectRatio,
+            ...(seed && { seed }),
+            addWatermark: false,
+            enhancePrompt: false
+        }
+    };
+
+    console.log(`🚀 Vertex AI 호출: ${modelId}`);
+
+    const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.error?.message || 'Unknown error';
+        const error = new Error(`Vertex AI API error ${response.status}: ${errorMessage}`);
+        error.status = response.status;
+        error.vertexMessage = errorMessage;
+        throw error;
+    }
+
+    const data = await response.json();
+    const imageData = data.predictions?.[0]?.bytesBase64Encoded;
+
+    if (!imageData) {
+        throw new Error('이미지가 생성되지 않았습니다');
+    }
+
+    return `data:image/png;base64,${imageData}`;
+}
+
+/**
+ * Vertex AI Imagen 이미지 생성
+ * - referenceImages 없음 → imagen-3.0-generate-002
+ * - referenceImages 있음 → imagen-3.0-capability-001 시도 → 실패 시 generate-002 폴백
  */
 async function generateWithVertexAI(prompt, aspectRatio, projectId, options = {}) {
     const { seed, referenceImages } = options;
+
+    // 서비스 계정 인증
     const serviceAccountKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
     if (!serviceAccountKey) {
         throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY 환경 변수가 설정되지 않았습니다');
@@ -124,61 +198,55 @@ async function generateWithVertexAI(prompt, aspectRatio, projectId, options = {}
         throw new Error('OAuth 토큰 생성 실패');
     }
 
-    const endpoint =
-        `https://us-central1-aiplatform.googleapis.com/v1/projects/${projectId}` +
-        `/locations/us-central1/publishers/google/models/imagen-3.0-capability-001:predict`;
+    const hasReferenceImages = Array.isArray(referenceImages) && referenceImages.length > 0;
 
-    const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-            instances: [{
-                prompt,
-                // referenceImages가 있으면 Vertex AI 형식으로 변환하여 추가
-                ...(referenceImages && referenceImages.length > 0 && {
-                    referenceImages: referenceImages.map(ref => ({
-                        referenceType: 'REFERENCE_TYPE_SUBJECT',
-                        referenceId: ref.referenceId,
-                        referenceImage: {
-                            bytesBase64Encoded: ref.imageBase64
-                        },
-                        subjectImageConfig: {
-                            subjectDescription: ref.description,
-                            subjectType: 'SUBJECT_TYPE_PERSON'
-                        }
-                    }))
-                })
-            }],
-            parameters: {
-                sampleCount: 1,
-                aspectRatio,
-                // seed 사용 시 addWatermark: false 필수, enhancePrompt: false 권장
-                ...(seed && { seed }),
-                addWatermark: false,
-                enhancePrompt: false
-            }
-        })
-    });
-
-    if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        if (response.status === 429) {
-            throw new Error('429 RESOURCE_EXHAUSTED');
-        }
-        throw new Error(
-            `Vertex AI API error ${response.status}: ${errorData.error?.message || 'Unknown error'}`
+    // Case 1: referenceImages 없음 → generate-002 사용
+    if (!hasReferenceImages) {
+        console.log('📷 일반 이미지 생성 (generate-002)');
+        return await callImagen(
+            'imagen-3.0-generate-002',
+            prompt,
+            aspectRatio,
+            projectId,
+            token,
+            { seed, referenceImages: null }
         );
     }
 
-    const data = await response.json();
-    const imageData = data.predictions?.[0]?.bytesBase64Encoded;
+    // Case 2: referenceImages 있음 → capability-001 시도
+    console.log('🎭 커스터마이징 이미지 생성 (capability-001 시도)');
+    try {
+        return await callImagen(
+            'imagen-3.0-capability-001',
+            prompt,
+            aspectRatio,
+            projectId,
+            token,
+            { seed, referenceImages }
+        );
+    } catch (error) {
+        // capability 모델 사용 불가 시 폴백
+        const errorMsg = (error.vertexMessage || error.message || '').toLowerCase();
+        const isModelUnavailable =
+            errorMsg.includes('invalid endpoint') ||
+            errorMsg.includes('not found') ||
+            errorMsg.includes('unavailable') ||
+            errorMsg.includes('does not exist');
 
-    if (!imageData) {
-        throw new Error('이미지가 생성되지 않았습니다');
+        if (!isModelUnavailable) {
+            // 다른 오류는 그대로 throw
+            throw error;
+        }
+
+        // 폴백: generate-002로 재시도 (referenceImages 없이)
+        console.warn('⚠️ capability-001 사용 불가, generate-002로 폴백');
+        return await callImagen(
+            'imagen-3.0-generate-002',
+            prompt,
+            aspectRatio,
+            projectId,
+            token,
+            { seed, referenceImages: null }
+        );
     }
-
-    return `data:image/png;base64,${imageData}`;
 }
