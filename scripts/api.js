@@ -483,8 +483,6 @@ async generateImageLocal(params) {
 },
 
 
-                // 응답 객체 저장 (Retry-After 파싱용)
-                if (setResponse) setResponse(response);
 
                 if (response.status === 401) {
                     localStorage.removeItem('auth_token');
