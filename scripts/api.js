@@ -23,10 +23,10 @@ const API = {
 
     // Rate Limit 보호 (Vertex AI) - 첫 요청 간격용
     lastRequestTime: 0,
-    minRequestInterval: 4000, // ✅ 4초 (공식 권장 3초 + 안전 마진)
+    minRequestInterval: 6000, // ✅ 4초 (공식 권장 3초 + 안전 마진)
 
     // ✅ v2.0: 동시성 제한 (실사용)
-    maxConcurrent: 2,
+    maxConcurrent: 1,
     currentRequests: 0,
     requestQueue: [],
 
