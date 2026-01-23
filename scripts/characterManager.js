@@ -201,8 +201,13 @@ class CharacterManager {
             });
             
             if (result && result.imageUrl) {
+                const imageBase64 = result.imageUrl.startsWith('data:image/')
+                    ? result.imageUrl.replace(/^data:image\/\w+;base64,/, '')
+                    : null;
+
                 this._updateCharacterData(characterId, {
                     imageUrl: result.imageUrl,
+                    imageBase64: imageBase64,
                     imageStatus: 'completed',
                     lastError: null
                 });

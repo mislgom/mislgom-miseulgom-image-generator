@@ -9,7 +9,7 @@
  * - generateImageLocal 아래에 남아있던 "중복 fetch/if(response...)" 블록 제거 (문법 오류 원인)
  * - 동시성 처리: _withConcurrency 를 단일 진입점으로 사용, _executeWithQueue 는 호환용 래퍼로 유지
  * - _retryWithBackoff: 콜백이 setter를 받을 수도/안 받을 수도 있게 유지 (기존 호출 호환)
- * - minRequestInterval: 2000 → 4000 (공식 권장 3초 + 안전 마진)
+ * - minRequestInterval: 6000 (공식 권장 3초 + 안전 마진)
  */
 
 const API = {
@@ -23,7 +23,7 @@ const API = {
 
     // Rate Limit 보호 (Vertex AI) - 첫 요청 간격용
     lastRequestTime: 0,
-    minRequestInterval: 6000, // ✅ 4초 (공식 권장 3초 + 안전 마진)
+    minRequestInterval: 6000, // ✅ 6초 (공식 권장 3초 + 안전 마진)
 
     // ✅ v2.0: 동시성 제한 (실사용)
     maxConcurrent: 1,
@@ -298,7 +298,7 @@ const API = {
      *  - async () => { ... }
      *  - async (setResponse) => { setResponse(response); ... }
      */
-    async _retryWithBackoff(func, maxRetries = 3) {
+    async _retryWithBackoff(func, maxRetries = 4) {
         let lastError = null;
         let lastResponse = null;
         let lastStatus = null;
@@ -332,7 +332,7 @@ const API = {
                 if (!isRetryable) throw error;
 
                 if (attempt === maxRetries - 1) {
-                    console.error(`❌ 최대 재시도 횟수(${maxRetries}회) 초과`);
+                    console.error(`❌ 최대 재시도 횟수(${maxRetries - 1}회) 초과`);
 
                     const finalError = new Error(this._getFinalErrorMessage(lastStatus, lastOriginalMessage));
                     finalError.status = lastStatus;
@@ -354,7 +354,7 @@ const API = {
                 }
 
                 console.warn(
-                    `⚠️ 재시도 대기. ${(waitTime / 1000).toFixed(1)}초 후 재시도 (${attempt + 1}/${maxRetries})...`
+                    `⚠️ 재시도 대기. ${(waitTime / 1000).toFixed(1)}초 후 재시도 (${attempt + 1}/${maxRetries - 1})...`
                 );
                 await new Promise((resolve) => setTimeout(resolve, waitTime));
             }
@@ -434,7 +434,14 @@ const API = {
 
                 if (!response.ok) {
                     const text = await response.text().catch(() => '');
-                    const error = new Error(text || `HTTP ${response.status}`);
+                    let errorMessage = `HTTP ${response.status}`;
+                    try {
+                        const parsed = JSON.parse(text);
+                        errorMessage = parsed.error || parsed.message || errorMessage;
+                    } catch (_) {
+                        if (text) errorMessage = text;
+                    }
+                    const error = new Error(errorMessage);
                     error.status = response.status;
                     throw error;
                 }
