@@ -521,10 +521,14 @@ try {
                 if (window.CharacterManager.reset) {
                     window.CharacterManager.reset();
                 } else {
-                    // reset 메서드가 없으면 수동 초기화
-                    if (window.CharacterManager.state) {
+                    // reset 메서드가 없으면 setCharacters 우선 (정규화/일관성 유지)
+                    if (window.CharacterManager.setCharacters) {
+                        window.CharacterManager.setCharacters([]);
+                    } else if (window.CharacterManager.state) {
+                        // 최후 폴백: 직접 대입 (가능하면 이 경로로 오지 않도록)
                         window.CharacterManager.state.characters = [];
                     }
+
                     if (window.CharacterManager.render) {
                         window.CharacterManager.render();
                     } else if (window.CharacterManager.renderCharacters) {
@@ -651,31 +655,33 @@ try {
 
     // CharacterManager loadState 폴백
 _loadCharactersFallback(data) {
-    // CharacterManager.state가 없으면 생성
-    if (window.CharacterManager && !window.CharacterManager.state) {
-        window.CharacterManager.state = { 
-            characters: [], 
-            selectedCharacter: null, 
-            isGenerating: false 
-        };
-    }
-    
+    const cm = window.CharacterManager;
+    if (!cm) return;
+
     // data.characters 배열 보장
-    if (!Array.isArray(data?.characters)) {
-        data = data || {};
-        data.characters = [];
-    }
-    
-    if (window.CharacterManager?.state) {
-        window.CharacterManager.state.characters = data.characters;
-        window.CharacterManager.state.selectedCharacter = data.selectedCharacter || null;
-        
-        if (window.CharacterManager.render) {
-            window.CharacterManager.render();
-        } else if (window.CharacterManager.renderCharacters) {
-            window.CharacterManager.renderCharacters();
+    const chars = Array.isArray(data?.characters) ? data.characters : [];
+    const selected = data?.selectedCharacter || null;
+
+    // ✅ setCharacters()를 우선 사용하여 id/imageStatus/seed 등 정규화
+    if (typeof cm.setCharacters === 'function') {
+        cm.setCharacters(chars);
+        if (cm.state) {
+            cm.state.selectedCharacter = selected;
+            cm.state.isGenerating = false;
         }
+        cm.render?.();
+        return;
     }
+
+    // 최후 폴백 (가능하면 이 분기로 오지 않게 해야 함)
+    if (!cm.state) {
+        cm.state = { characters: [], selectedCharacter: null, isGenerating: false };
+    }
+    cm.state.characters = chars;
+    cm.state.selectedCharacter = selected;
+    cm.state.isGenerating = false;
+    cm.render?.();
+    cm.renderCharacters?.();
 },
 
     // StoryboardManager loadState 폴백
