@@ -348,21 +348,14 @@ const ScriptManager = {
                 return;
             }
 
-            // ✅ 이미 분석된 상태면 저장된 결과로 모달만 표시 (API 재호출 안함)
+// ✅ 이미 분석된 상태면 저장된 결과로 모달만 표시 (API 재호출 안함)
             if (this.state.isAnalyzed && this.state.analysisResult) {
                 console.log('📊 저장된 분석 결과 사용 (API 재호출 없음)');
                 
-                // 저장된 등장인물 데이터 복원 (새 클래스 API 또는 직접 접근)
+                // 저장된 등장인물 데이터 복원
                 if (this.state.savedCharacters && this.state.savedCharacters.length > 0) {
-                    if (typeof CharacterManager.setCharacters === 'function') {
+                    if (CharacterManager.setCharacters) {
                         CharacterManager.setCharacters(this.state.savedCharacters);
-                    } else if (CharacterManager.state) {
-                        CharacterManager.state.characters = this.state.savedCharacters;
-                        if (typeof CharacterManager.render === 'function') {
-                            CharacterManager.render();
-                        } else if (typeof CharacterManager.renderCharacters === 'function') {
-                            CharacterManager.renderCharacters();
-                        }
                     }
 
                     // 등장인물 생성 버튼 활성화
@@ -387,8 +380,8 @@ const ScriptManager = {
             this.state.analysisResult = analysisResult;
             this.state.isAnalyzed = true;
             
-            // ✅ 등장인물 데이터도 저장 (새 클래스 API 또는 직접 접근)
-            const currentChars = CharacterManager.state?.characters || CharacterManager.getCharacters?.() || [];
+            // ✅ 등장인물 데이터도 저장
+            const currentChars = CharacterManager.getCharacters?.() || CharacterManager.state?.characters || [];
             this.state.savedCharacters = [...currentChars];
 
             UI.hideLoading();
@@ -422,7 +415,7 @@ const ScriptManager = {
                 console.log(`👥 등장인물 ${result.characters.length}명 자동 추출됨`);
                 console.log(`📅 시대 배경: ${result.era || 'joseon'}`);
 
-                // CharacterManager에 등장인물 설정 (새 클래스 API 또는 직접 접근)
+                // CharacterManager에 등장인물 설정
                 const mappedCharacters = result.characters.map(char => ({
                     name: char.name,
                     nameEn: char.nameEn,
@@ -434,17 +427,8 @@ const ScriptManager = {
                     style: CharacterManager.state?.currentStyle || CharacterManager.projectStyle || 'korean-webtoon'
                 }));
 
-                // ✅ 새 API (setCharacters) 또는 직접 state 접근
-                if (typeof CharacterManager.setCharacters === 'function') {
-                    CharacterManager.setCharacters(mappedCharacters);
-                } else if (CharacterManager.state) {
-                    CharacterManager.state.characters = mappedCharacters;
-                    if (typeof CharacterManager.render === 'function') {
-                        CharacterManager.render();
-                    } else if (typeof CharacterManager.renderCharacters === 'function') {
-                        CharacterManager.renderCharacters();
-                    }
-                }
+                // ✅ setCharacters 호출 (id, imageStatus 자동 생성)
+                CharacterManager.setCharacters(mappedCharacters);
                 
                 // 등장인물 생성 버튼 활성화
                 const generateBtn = document.getElementById('generate-characters-btn');
@@ -470,17 +454,8 @@ const ScriptManager = {
                     style: CharacterManager.state?.currentStyle || CharacterManager.projectStyle || 'korean-webtoon'
                 }));
 
-                // ✅ 새 API (setCharacters) 또는 직접 state 접근
-                if (typeof CharacterManager.setCharacters === 'function') {
-                    CharacterManager.setCharacters(mappedChars);
-                } else if (CharacterManager.state) {
-                    CharacterManager.state.characters = mappedChars;
-                    if (typeof CharacterManager.render === 'function') {
-                        CharacterManager.render();
-                    } else if (typeof CharacterManager.renderCharacters === 'function') {
-                        CharacterManager.renderCharacters();
-                    }
-                }
+                // ✅ setCharacters 호출 (id, imageStatus 자동 생성)
+                CharacterManager.setCharacters(mappedChars);
             }
 
             return fallbackResult.scenes || fallbackResult;
