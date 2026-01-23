@@ -610,23 +610,39 @@ try {
         }
     },
 
-    // CharacterManager saveState 폴백
+    // CharacterManager saveState 폴백 (imageBase64 제외)
     _getCharactersFallback() {
         if (window.CharacterManager?.state?.characters) {
+            const stripped = window.CharacterManager.state.characters.map(char => {
+                const { imageBase64, imageUrl, ...rest } = char;
+                return {
+                    ...rest,
+                    hasImage: !!(imageBase64 || (imageUrl && imageUrl.startsWith('data:'))),
+                    imageUrl: null,
+                    imageBase64: null
+                };
+            });
             return {
-                characters: window.CharacterManager.state.characters,
+                characters: stripped,
                 selectedCharacter: window.CharacterManager.state.selectedCharacter || null
             };
         }
         return null;
     },
 
-    // StoryboardManager saveState 폴백
+    // StoryboardManager saveState 폴백 (imageBase64 제외)
     _getStoryboardFallback() {
         if (window.StoryboardManager?.state?.scenes) {
-            return {
-                scenes: window.StoryboardManager.state.scenes
-            };
+            const stripped = window.StoryboardManager.state.scenes.map(scene => {
+                const { imageBase64, imageUrl, ...rest } = scene;
+                return {
+                    ...rest,
+                    hasImage: !!(imageBase64 || (imageUrl && imageUrl.startsWith('data:'))),
+                    imageUrl: null,
+                    imageBase64: null
+                };
+            });
+            return { scenes: stripped };
         }
         return null;
     },
@@ -731,17 +747,25 @@ _loadCharactersFallback(data) {
         }
     },
 
-    // 프로젝트 내보내기 (JSON) - 안전가드 적용
+    // 프로젝트 내보내기 (JSON) - 이미지 포함 (파일 저장이므로 용량 제한 없음)
     exportProject() {
         try {
+            // 내보내기는 파일 저장이므로 이미지 데이터 포함 (localStorage와 달리 용량 무제한)
+            const characters = window.CharacterManager?.state?.characters
+                ? { characters: window.CharacterManager.state.characters, selectedCharacter: window.CharacterManager.state.selectedCharacter }
+                : null;
+            const storyboard = window.StoryboardManager?.state
+                ? { scenes: window.StoryboardManager.state.scenes, currentPart: window.StoryboardManager.state.currentPart, totalScenes: window.StoryboardManager.state.totalScenes }
+                : null;
+
             const projectData = {
                 name: this.projectName,
                 projectId: this.currentProjectId,
                 version: this.version,
                 exportedAt: Date.now(),
                 script: window.ScriptManager?.saveState ? window.ScriptManager.saveState() : null,
-                characters: window.CharacterManager?.saveState ? window.CharacterManager.saveState() : this._getCharactersFallback(),
-                storyboard: window.StoryboardManager?.saveState ? window.StoryboardManager.saveState() : this._getStoryboardFallback()
+                characters: characters,
+                storyboard: storyboard
             };
 
             const jsonStr = JSON.stringify(projectData, null, 2);
@@ -1056,6 +1080,12 @@ _loadCharactersFallback(data) {
                     character.imageBase64 = newImageBase64;
                     character.promptEn = finalPrompt;
 
+                    // IndexedDB에 수정된 이미지 저장
+                    if (window.ImageStore && newImageBase64) {
+                        window.ImageStore.saveImage(character.id, newImageBase64, editedImageUrl)
+                            .catch(err => console.warn('[App] IndexedDB 캐릭터 이미지 저장 실패:', err));
+                    }
+
                     // UI 업데이트
                     if (window.CharacterManager.render) {
                         window.CharacterManager.render();
@@ -1088,6 +1118,12 @@ _loadCharactersFallback(data) {
                     scene.imageUrl = editedImageUrl;
                     scene.imageBase64 = newImageBase64;
                     scene.promptEn = finalPrompt;
+
+                    // IndexedDB에 수정된 이미지 저장
+                    if (window.ImageStore && newImageBase64) {
+                        window.ImageStore.saveImage(scene.id, newImageBase64, editedImageUrl)
+                            .catch(err => console.warn('[App] IndexedDB 장면 이미지 저장 실패:', err));
+                    }
 
                     // UI 업데이트
                     if (window.StoryboardManager.render) {
