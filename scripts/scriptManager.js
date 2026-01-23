@@ -354,8 +354,8 @@ const ScriptManager = {
                 
                 // 저장된 등장인물 데이터 복원
                 if (this.state.savedCharacters && this.state.savedCharacters.length > 0) {
-                    if (CharacterManager.setCharacters) {
-                        CharacterManager.setCharacters(this.state.savedCharacters);
+                    if (window.CharacterManager.setCharacters) {
+                        window.CharacterManager.setCharacters(this.state.savedCharacters);
                     }
 
                     // 등장인물 생성 버튼 활성화
@@ -381,7 +381,7 @@ const ScriptManager = {
             this.state.isAnalyzed = true;
             
             // ✅ 등장인물 데이터도 저장
-            const currentChars = CharacterManager.getCharacters?.() || CharacterManager.state?.characters || [];
+            const currentChars = window.CharacterManager.getCharacters?.() || window.CharacterManager.state?.characters || [];
             this.state.savedCharacters = [...currentChars];
 
             UI.hideLoading();
@@ -410,12 +410,12 @@ const ScriptManager = {
             const result = await API.analyzeScriptWithGemini(scripts);
             console.log('✅ 대본 분석 완료:', result);
             
-            // 🆕 등장인물 자동 추출 (CharacterManager로 전달) - v3.0 era 포함
+            // 🆕 등장인물 자동 추출 (window.CharacterManager로 전달) - v3.0 era 포함
             if (result.characters && result.characters.length > 0) {
                 console.log(`👥 등장인물 ${result.characters.length}명 자동 추출됨`);
                 console.log(`📅 시대 배경: ${result.era || 'joseon'}`);
 
-                // CharacterManager에 등장인물 설정
+                // window.CharacterManager에 등장인물 설정
                 const mappedCharacters = result.characters.map(char => ({
                     name: char.name,
                     nameEn: char.nameEn,
@@ -423,12 +423,12 @@ const ScriptManager = {
                     descriptionEn: char.descriptionEn,
                     description: char.descriptionEn,  // 기존 호환성
                     era: char.era || result.era || 'joseon',  // 🆕 시대 정보
-                    ethnicity: CharacterManager.state?.currentEthnicity || 'korean',
-                    style: CharacterManager.state?.currentStyle || CharacterManager.projectStyle || 'korean-webtoon'
+                    ethnicity: window.CharacterManager.state?.currentEthnicity || 'korean',
+                    style: window.CharacterManager.state?.currentStyle || window.CharacterManager.projectStyle || 'korean-webtoon'
                 }));
 
                 // ✅ setCharacters 호출 (id, imageStatus 자동 생성)
-                CharacterManager.setCharacters(mappedCharacters);
+                window.CharacterManager.setCharacters(mappedCharacters);
                 
                 // 등장인물 생성 버튼 활성화
                 const generateBtn = document.getElementById('generate-characters-btn');
@@ -450,12 +450,12 @@ const ScriptManager = {
             if (fallbackResult.characters) {
                 const mappedChars = fallbackResult.characters.map(char => ({
                     ...char,
-                    ethnicity: CharacterManager.state?.currentEthnicity || 'korean',
-                    style: CharacterManager.state?.currentStyle || CharacterManager.projectStyle || 'korean-webtoon'
+                    ethnicity: window.CharacterManager.state?.currentEthnicity || 'korean',
+                    style: window.CharacterManager.state?.currentStyle || window.CharacterManager.projectStyle || 'korean-webtoon'
                 }));
 
                 // ✅ setCharacters 호출 (id, imageStatus 자동 생성)
-                CharacterManager.setCharacters(mappedChars);
+                window.CharacterManager.setCharacters(mappedChars);
             }
 
             return fallbackResult.scenes || fallbackResult;
@@ -581,10 +581,10 @@ const ScriptManager = {
         UI.showToast('✅ 이미지 수가 설정되었습니다', 'success');
 
         // ✅ Gemini가 이미 등장인물을 추출했으면 다시 추출하지 않음
-        const existingChars = CharacterManager.state?.characters || CharacterManager.getCharacters?.() || [];
+        const existingChars = window.CharacterManager.state?.characters || window.CharacterManager.getCharacters?.() || [];
         if (existingChars.length === 0) {
-            if (typeof CharacterManager.extractCharactersFromAllScripts === 'function') {
-                CharacterManager.extractCharactersFromAllScripts(this.getAllScripts());
+            if (typeof window.CharacterManager.extractCharactersFromAllScripts === 'function') {
+                window.CharacterManager.extractCharactersFromAllScripts(this.getAllScripts());
             }
         }
 
@@ -756,7 +756,7 @@ const ScriptManager = {
     // ✅ 상태 저장 - v1.1 (등장인물 데이터 포함)
     saveState() {
         // ✅ 등장인물 안전 접근 (새 클래스 API 또는 직접 접근)
-        const currentChars = CharacterManager.state?.characters || CharacterManager.getCharacters?.() || [];
+        const currentChars = window.CharacterManager.state?.characters || window.CharacterManager.getCharacters?.() || [];
         return {
             partCount: this.state.partCount,
             currentPart: this.state.currentPart,
@@ -797,19 +797,14 @@ const ScriptManager = {
                 }
             }
 
-            // ✅ 등장인물 데이터 복원 (새 클래스 API 또는 직접 접근)
+            // ✅ 등장인물 데이터 복원 (반드시 setCharacters 경유)
             if (this.state.savedCharacters && this.state.savedCharacters.length > 0) {
-                if (typeof CharacterManager.setCharacters === 'function') {
-                    CharacterManager.setCharacters(this.state.savedCharacters);
-                } else if (CharacterManager.state) {
-                    CharacterManager.state.characters = this.state.savedCharacters;
-                    if (typeof CharacterManager.render === 'function') {
-                        CharacterManager.render();
-                    } else if (typeof CharacterManager.renderCharacters === 'function') {
-                        CharacterManager.renderCharacters();
-                    }
+                if (window.CharacterManager?.setCharacters) {
+                    window.CharacterManager.setCharacters(this.state.savedCharacters);
+                    console.log(`👥 저장된 등장인물 ${this.state.savedCharacters.length}명 복원됨`);
+                } else {
+                    console.error('[ScriptManager] CharacterManager.setCharacters를 찾을 수 없습니다');
                 }
-                console.log(`👥 저장된 등장인물 ${this.state.savedCharacters.length}명 복원됨`);
             }
 
             // 분석 완료 상태면 버튼 활성화
@@ -846,18 +841,13 @@ const ScriptManager = {
             }
         }
         
-        // 등장인물 초기화 (새 클래스 API 또는 직접 접근)
-        if (typeof CharacterManager.reset === 'function') {
-            CharacterManager.reset();
-        } else if (typeof CharacterManager.setCharacters === 'function') {
-            CharacterManager.setCharacters([]);
-        } else if (CharacterManager.state) {
-            CharacterManager.state.characters = [];
-            if (typeof CharacterManager.render === 'function') {
-                CharacterManager.render();
-            } else if (typeof CharacterManager.renderCharacters === 'function') {
-                CharacterManager.renderCharacters();
-            }
+        // 등장인물 초기화 (반드시 reset 또는 setCharacters 경유)
+        if (window.CharacterManager?.reset) {
+            window.CharacterManager.reset();
+        } else if (window.CharacterManager?.setCharacters) {
+            window.CharacterManager.setCharacters([]);
+        } else {
+            console.error('[ScriptManager] CharacterManager.reset/setCharacters를 찾을 수 없습니다');
         }
         
         // 등장인물 생성 버튼 비활성화
