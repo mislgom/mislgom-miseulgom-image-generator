@@ -9,7 +9,7 @@
  * - generateImageLocal 아래에 남아있던 "중복 fetch/if(response...)" 블록 제거 (문법 오류 원인)
  * - 동시성 처리: _withConcurrency 를 단일 진입점으로 사용, _executeWithQueue 는 호환용 래퍼로 유지
  * - _retryWithBackoff: 콜백이 setter를 받을 수도/안 받을 수도 있게 유지 (기존 호출 호환)
- * - minRequestInterval: 6000 (공식 권장 3초 + 안전 마진)
+ * - minRequestInterval: 10000 (429 방지 강화, 분당 6건 이내)
  */
 
 const API = {
@@ -21,9 +21,9 @@ const API = {
     IMAGE_API_KEY: null,
     IMAGE_PROJECT_ID: null,
 
-    // Rate Limit 보호 (Vertex AI) - 첫 요청 간격용
+    // Rate Limit 보호 (Vertex AI) - 요청 간 최소 간격
     lastRequestTime: 0,
-    minRequestInterval: 6000, // ✅ 6초 (공식 권장 3초 + 안전 마진)
+    minRequestInterval: 10000, // ✅ 10초 (429 방지 강화, 분당 6건 이내)
 
     // ✅ v2.0: 동시성 제한 (실사용)
     maxConcurrent: 1,
