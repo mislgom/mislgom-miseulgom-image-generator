@@ -178,21 +178,12 @@ const API = {
         }
     },
 
-    // ✅ v2.1: 이미지 생성 (generateImageLocal로 위임)
-    async generateImage(params) {
-        if (this.demoMode) {
-            console.log('🎮 데모 모드: 데모 이미지 반환');
-            const demoImages = [
-                'https://images.unsplash.com/photo-1551847812-36c8db2e6936?w=800&h=450&fit=crop',
-                'https://images.unsplash.com/photo-1547891654-e66ed7ebb968?w=800&h=450&fit=crop',
-                'https://images.unsplash.com/photo-1551847812-9dcf1acbf8b4?w=800&h=450&fit=crop',
-            ];
-            return { imageUrl: demoImages[Math.floor(Math.random() * demoImages.length)] };
-        }
-
-        const imageUrl = await this.generateImageLocal(params);
-        return { imageUrl };
-    },
+// ✅ v2.1: 이미지 생성 (generateImageLocal로 위임)
+async generateImage(params) {
+    // ✅ 데모 분기 제거: 항상 실서버 호출
+    const imageUrl = await this.generateImageLocal(params);
+    return { imageUrl };
+},
 
     // 프로젝트 생성
     async createProject(name, style) {
