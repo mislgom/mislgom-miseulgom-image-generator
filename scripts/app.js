@@ -1175,11 +1175,12 @@ _loadCharactersFallback(data) {
             this.isDemoMode = true;
         }
 
-        // API 모듈에 데모모드 상태 동기화
-        if (window.API?.setDemoMode) {
-            window.API.setDemoMode(this.isDemoMode);
-            console.log(`🔄 API 데모모드 설정: ${this.isDemoMode}`);
-        }
+       // API 모듈에 데모모드 상태 동기화
+if (window.API?.setDemoMode) {
+  this.isDemoMode = false;        // ✅ 항상 실전
+  window.API.setDemoMode(false);  // ✅ 항상 실전
+  console.log('🔄 API 데모모드 설정: false (forced)');
+}
     },
 
     // ========== API 설정 모달 ==========
