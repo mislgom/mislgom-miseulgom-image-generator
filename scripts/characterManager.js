@@ -442,15 +442,18 @@ class CharacterManager {
 
     loadState(state) {
         if (!state) return;
-        
-        this.state = {
-            characters: Array.isArray(state.characters) ? state.characters : [],
-            selectedCharacter: state.selectedCharacter || null,
-            isGenerating: false
-        };
-        
+
+        // 선택/생성 상태는 그대로 복원
+        this.state.selectedCharacter = state.selectedCharacter || null;
+        this.state.isGenerating = false;
+
+        // ✅ 반드시 setCharacters()를 경유해 id/imageStatus/seed 등 정규화
+        const chars = Array.isArray(state.characters) ? state.characters : [];
+        this.setCharacters(chars);
+
+        // setCharacters() 내부에서 render()가 호출되지만, 선택 반영/DOM 동기화 안전을 위해 한 번 더
         this.render();
-        console.log('[CharacterManager] 상태 복원됨:', this.state.characters.length, '명');
+        console.log('[CharacterManager] 상태 복원됨(정규화):', this.state.characters.length, '명');
     }
 
     setFaceSpecsFromGemini(faceSpecs) {
