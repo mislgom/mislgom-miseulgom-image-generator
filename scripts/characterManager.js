@@ -134,7 +134,7 @@ class CharacterManager {
                 ...char,
                 id: stableId,
                 imageUrl: char.imageUrl || null,
-                imageStatus: char.imageStatus || 'pending',
+                imageStatus: char.imageStatus ?? 'pending',
                 lastError: null,
                 seed: char.seed || this._generateSeedFromId(stableId),
                 faceSpec: char.faceSpec || null
@@ -167,15 +167,9 @@ class CharacterManager {
     }
 
     async generateCharacterImage(characterId, options = {}) {
-        if (window.App?.isDemoMode) {
-            console.warn('[CharacterManager] 데모 모드 - 이미지 생성 차단');
-            if (window.UI?.showToast) {
-                window.UI.showToast('API 설정 후 이미지 생성이 가능합니다', 'warning');
-            }
-            return null;
-        }
-
         const character = this.state.characters.find(c => c.id === characterId);
+
+  
         if (!character) {
             console.error('[CharacterManager] 캐릭터를 찾을 수 없음:', characterId);
             return null;
@@ -421,12 +415,9 @@ class CharacterManager {
             .map((char, index) => this._renderCharacterCard(char, index))
             .join('');
         
-        // ✅ 기존 main.css의 .character-grid 사용 (가로 그리드)
-        this.container.innerHTML = `
-            <div class="character-grid">
-                ${cardsHtml}
-            </div>
-        `;
+     // ✅ 기존 main.css의 .character-grid 사용 (가로 그리드)
+        this.container.innerHTML = cardsHtml;
+        this.container.classList.add('character-grid');
         
         this._isInitialRenderDone = true;
     }
