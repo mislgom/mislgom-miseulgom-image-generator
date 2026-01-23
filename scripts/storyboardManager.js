@@ -233,7 +233,7 @@ const StoryboardManager = {
     // 장면 프롬프트 생성 - v3.0 (Gemini로 등장인물 일관성 유지)
     async createScenePrompt(segment) {
         const text = segment.fullText;
-        const currentStyle = CharacterManager.state.currentStyle;
+        const currentStyle = window.CharacterManager?.state?.currentStyle || 'korean-webtoon';
 
         // 🆕 이 장면에 등장하는 인물 감지
         const characters = this.detectCharactersInSegment(text);
@@ -372,7 +372,7 @@ const StoryboardManager = {
 
             const imageUrl = await API.generateImageLocal({
                 prompt: prompt.en,
-                aspectRatio: CharacterManager.state.currentAspectRatio,
+                aspectRatio: window.CharacterManager?.state?.currentAspectRatio || '1:1',
                 ...(seed && { seed }),
                 ...(referenceImages.length > 0 && { referenceImages })
             });
@@ -385,7 +385,7 @@ const StoryboardManager = {
 
     // 구간에서 등장인물 감지
     detectCharactersInSegment(text) {
-        const characters = CharacterManager.state.characters;
+        const characters = window.CharacterManager?.state?.characters || window.CharacterManager?.getCharacters?.() || [];
         const detected = [];
 
         characters.forEach(char => {
@@ -551,7 +551,7 @@ const StoryboardManager = {
                 <img src="${item.imageUrl}" alt="v${item.version}" class="history-thumbnail" style="cursor: pointer;">
                 <div class="history-info">
                     <span class="history-version">v${item.version}</span>
-                    <span class="history-date">${CharacterManager.formatTimestamp(item.timestamp)}</span>
+                    <span class="history-date">${window.CharacterManager?.formatTimestamp?.(item.timestamp) || ''}</span>
                 </div>
                 <button class="btn-icon-small" title="이 버전으로 복원" data-version="${item.version}">
                     ↩️
@@ -803,18 +803,13 @@ const StoryboardManager = {
         };
     },
 
-    // 상태 복원 (안전한 병합)
+    // 상태 복원
     loadState(state) {
         if (state) {
-            // ✅ 기존 state를 완전히 덮어쓰지 않고, 기본값과 병합
-            this.state = {
-                scenes: Array.isArray(state.scenes) ? state.scenes : [],
-                currentPart: state.currentPart || 'all',
-                totalScenes: state.totalScenes || 0
-            };
+            this.state = state;
             this.renderScenes();
             this.updatePartFilter();
-
+            
             if (this.state.scenes.length > 0) {
                 this.enableDownloadButton();
             }
