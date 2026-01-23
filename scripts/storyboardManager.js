@@ -126,6 +126,12 @@ const StoryboardManager = {
                         this.state.scenes.push(scene);
                         sceneIndex++;
 
+                        // IndexedDB에 이미지 저장 (localStorage 용량 절약)
+                        if (window.ImageStore && imageBase64) {
+                            window.ImageStore.saveImage(scene.id, imageBase64, imageUrl)
+                                .catch(err => console.warn('[Storyboard] IndexedDB 저장 실패:', err));
+                        }
+
                         // UI 업데이트
                         this.renderScenes();
                         UI.updateProgress(sceneIndex, totalScenes);
@@ -436,9 +442,14 @@ const StoryboardManager = {
             ? scene.scriptText.substring(0, 80) + '...'
             : scene.scriptText;
 
+        // 이미지가 아직 IndexedDB에서 복원 중일 수 있음
+        const imageHtml = scene.imageUrl
+            ? `<img src="${scene.imageUrl}" alt="장면 ${index + 1}" class="scene-image">`
+            : `<div class="scene-image" style="display:flex;align-items:center;justify-content:center;background:var(--bg-secondary,#f3f4f6);min-height:200px;"><span>🔄 불러오는 중...</span></div>`;
+
         card.innerHTML = `
             <div class="scene-image-wrapper">
-                <img src="${scene.imageUrl}" alt="장면 ${index + 1}" class="scene-image">
+                ${imageHtml}
                 <div class="scene-overlay">
                     <span class="scene-number">장면 ${index + 1}</span>
                 </div>
@@ -691,6 +702,12 @@ const StoryboardManager = {
             scene.promptEn = prompt.en;
             scene.seed = seed;  // ✅ seed 업데이트
 
+            // IndexedDB에 이미지 저장
+            if (window.ImageStore && imageBase64) {
+                window.ImageStore.saveImage(scene.id, imageBase64, imageUrl)
+                    .catch(err => console.warn('[Storyboard] IndexedDB 저장 실패:', err));
+            }
+
             this.renderScenes();
             UI.showToast('✅ 장면 재생성 완료!', 'success');
 
@@ -794,10 +811,31 @@ const StoryboardManager = {
         }
     },
 
-    // 상태 저장
+    // 상태 저장 (imageBase64/imageUrl은 IndexedDB에 저장, localStorage에서 제외)
     saveState() {
+        const strippedScenes = this.state.scenes.map(scene => {
+            const { imageBase64, imageUrl, history, ...rest } = scene;
+
+            // 히스토리에서도 imageUrl 제거 (data: URL은 용량 큼)
+            const strippedHistory = (history || []).map(h => {
+                const { imageUrl: hUrl, ...hRest } = h;
+                return {
+                    ...hRest,
+                    hasImage: !!(hUrl && hUrl.startsWith('data:'))
+                };
+            });
+
+            return {
+                ...rest,
+                hasImage: !!(imageBase64 || (imageUrl && imageUrl.startsWith('data:'))),
+                imageUrl: null,
+                imageBase64: null,
+                history: strippedHistory
+            };
+        });
+
         return {
-            scenes: this.state.scenes,
+            scenes: strippedScenes,
             currentPart: this.state.currentPart,
             totalScenes: this.state.totalScenes
         };
@@ -809,10 +847,54 @@ const StoryboardManager = {
             this.state = state;
             this.renderScenes();
             this.updatePartFilter();
-            
+
             if (this.state.scenes.length > 0) {
                 this.enableDownloadButton();
             }
+
+            // IndexedDB에서 이미지 비동기 복원
+            this.restoreImagesFromStore();
+        }
+    },
+
+    // IndexedDB에서 장면 이미지 복원 (기존 데이터 마이그레이션 포함)
+    async restoreImagesFromStore() {
+        if (!window.ImageStore) return;
+
+        // 1) 마이그레이션: 메모리에 imageBase64가 있지만 IndexedDB에 없는 경우 저장
+        const scenesWithImages = this.state.scenes.filter(s => s.imageBase64);
+        if (scenesWithImages.length > 0) {
+            const items = scenesWithImages.map(s => ({
+                id: s.id,
+                imageBase64: s.imageBase64,
+                imageUrl: s.imageUrl
+            }));
+            await window.ImageStore.saveMany(items);
+            console.log('[Storyboard] 기존 이미지 IndexedDB 마이그레이션:', items.length, '건');
+        }
+
+        // 2) 복원: hasImage 플래그가 있지만 메모리에 이미지가 없는 경우
+        const needRestore = this.state.scenes.filter(s => s.hasImage && !s.imageBase64);
+        if (needRestore.length === 0) return;
+
+        console.log('[Storyboard] IndexedDB에서 이미지 복원 시작:', needRestore.length, '건');
+
+        const ids = needRestore.map(s => s.id);
+        const imageMap = await window.ImageStore.getMany(ids);
+
+        let restored = 0;
+        for (const scene of this.state.scenes) {
+            const imageData = imageMap.get(scene.id);
+            if (imageData) {
+                scene.imageBase64 = imageData.imageBase64;
+                scene.imageUrl = imageData.imageUrl;
+                restored++;
+            }
+        }
+
+        if (restored > 0) {
+            console.log('[Storyboard] 이미지 복원 완료:', restored, '건');
+            this.renderScenes();
         }
     }
 };

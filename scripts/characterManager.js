@@ -221,7 +221,13 @@ class CharacterManager {
                     imageStatus: 'completed',
                     lastError: null
                 });
-                
+
+                // IndexedDB에 이미지 저장 (localStorage 용량 절약)
+                if (window.ImageStore && imageBase64) {
+                    window.ImageStore.saveImage(characterId, imageBase64, result.imageUrl)
+                        .catch(err => console.warn('[CharacterManager] IndexedDB 이미지 저장 실패:', err));
+                }
+
                 console.log('[CharacterManager] 이미지 생성 완료:', character.name);
                 
                 if (this.onCharacterUpdate) {
@@ -333,6 +339,14 @@ class CharacterManager {
         let imageContent = '';
         if (character.imageUrl && character.imageStatus === 'completed') {
             imageContent = `<img src="${character.imageUrl}" alt="${character.name}" class="character-image">`;
+        } else if (character.hasImage && !character.imageUrl && character.imageStatus === 'completed') {
+            // IndexedDB에서 이미지 복원 중
+            imageContent = `
+                <div class="character-placeholder">
+                    <span>🔄</span>
+                    <small style="font-size: 12px; margin-top: 8px;">불러오는 중...</small>
+                </div>
+            `;
         } else if (isGenerating) {
             imageContent = `
                 <div class="character-placeholder">
@@ -449,10 +463,66 @@ class CharacterManager {
     }
 
     saveState() {
+        // imageBase64와 data: URL을 제외하여 localStorage 용량 초과 방지
+        const strippedCharacters = this.state.characters.map(char => {
+            const { imageBase64, imageUrl, ...rest } = char;
+            return {
+                ...rest,
+                // 이미지 존재 여부만 플래그로 저장 (실제 데이터는 IndexedDB)
+                hasImage: !!(imageBase64 || (imageUrl && imageUrl.startsWith('data:'))),
+                imageUrl: null,
+                imageBase64: null
+            };
+        });
+
         return {
-            characters: this.state.characters,
+            characters: strippedCharacters,
             selectedCharacter: this.state.selectedCharacter
         };
+    }
+
+    /**
+     * IndexedDB에서 캐릭터 이미지 복원 (loadState 후 호출)
+     * 기존 localStorage 데이터 마이그레이션도 처리
+     */
+    async restoreImagesFromStore() {
+        if (!window.ImageStore) return;
+
+        // 1) 마이그레이션: 메모리에 imageBase64가 있지만 IndexedDB에 없는 경우 저장
+        const charsWithImages = this.state.characters.filter(c => c.imageBase64);
+        if (charsWithImages.length > 0) {
+            const items = charsWithImages.map(c => ({
+                id: c.id,
+                imageBase64: c.imageBase64,
+                imageUrl: c.imageUrl
+            }));
+            await window.ImageStore.saveMany(items);
+            console.log('[CharacterManager] 기존 이미지 IndexedDB 마이그레이션:', items.length, '건');
+        }
+
+        // 2) 복원: hasImage 플래그가 있지만 메모리에 이미지가 없는 경우
+        const needRestore = this.state.characters.filter(c => c.hasImage && !c.imageBase64);
+        if (needRestore.length === 0) return;
+
+        console.log('[CharacterManager] IndexedDB에서 이미지 복원 시작:', needRestore.length, '건');
+
+        const ids = needRestore.map(c => c.id);
+        const imageMap = await window.ImageStore.getMany(ids);
+
+        let restored = 0;
+        for (const char of this.state.characters) {
+            const imageData = imageMap.get(char.id);
+            if (imageData) {
+                char.imageBase64 = imageData.imageBase64;
+                char.imageUrl = imageData.imageUrl;
+                restored++;
+            }
+        }
+
+        if (restored > 0) {
+            console.log('[CharacterManager] 이미지 복원 완료:', restored, '건');
+            this.render();
+        }
     }
 
     loadState(state) {
@@ -469,6 +539,9 @@ class CharacterManager {
         // setCharacters() 내부에서 render()가 호출되지만, 선택 반영/DOM 동기화 안전을 위해 한 번 더
         this.render();
         console.log('[CharacterManager] 상태 복원됨(정규화):', this.state.characters.length, '명');
+
+        // IndexedDB에서 이미지 비동기 복원
+        this.restoreImagesFromStore();
     }
 
     setFaceSpecsFromGemini(faceSpecs) {
