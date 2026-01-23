@@ -9,7 +9,6 @@ const App = {
     version: '2.0.5',
     projectName: '새 프로젝트',
     currentProjectId: null, // 불변 프로젝트 식별자 (캐릭터 외형 분리용)
-    isDemoMode: true,
     projectStyle: null,  // 프로젝트 스타일 (외부 주입용)
     autoSaveTimer: null, // 자동 저장 타이머
 
@@ -46,7 +45,7 @@ const App = {
             // 프로젝트 복원
             this.restoreLastProject();
 
-            // 백엔드 연결 확인 + 데모모드 동기화
+            // 백엔드 연결 확인
             await this.checkBackendConnection();
 
             console.log('✅ 애플리케이션 초기화 완료');
@@ -503,8 +502,63 @@ try {
             case 'import':
                 this.importProject();
                 break;
+            case 'reset':
+                this.resetAll();
+                break;
             default:
                 console.warn('알 수 없는 액션:', action);
+        }
+    },
+
+    // 전체 초기화 (모든 데이터 삭제)
+    resetAll() {
+        if (confirm('모든 데이터를 초기화하시겠습니까?\n\n저장된 프로젝트, 대본, 등장인물, 스토리보드가 모두 삭제됩니다.\n(API 키 설정은 유지됩니다)')) {
+            // 프로젝트 상태 초기화
+            this.projectName = '새 프로젝트';
+            this.currentProjectId = window.ProjectManager?.generateProjectId
+                ? window.ProjectManager.generateProjectId()
+                : crypto.randomUUID();
+
+            // CharacterManager 초기화
+            if (window.CharacterManager?.setProjectId) {
+                window.CharacterManager.setProjectId(this.currentProjectId);
+            }
+            if (window.CharacterManager?.reset) {
+                window.CharacterManager.reset();
+            } else if (window.CharacterManager?.setCharacters) {
+                window.CharacterManager.setCharacters([]);
+            }
+
+            // ScriptManager 초기화
+            if (window.ScriptManager?.resetAnalysis) {
+                window.ScriptManager.resetAnalysis();
+            }
+
+            // StoryboardManager 초기화
+            if (window.StoryboardManager?.reset) {
+                window.StoryboardManager.reset();
+            } else if (window.StoryboardManager?.state) {
+                window.StoryboardManager.state.scenes = [];
+                if (window.StoryboardManager.render) {
+                    window.StoryboardManager.render();
+                }
+            }
+
+            // IndexedDB 이미지 데이터 삭제
+            if (window.ImageStore?.clear) {
+                window.ImageStore.clear();
+            }
+
+            // localStorage에서 프로젝트 관련 데이터 삭제 (API 키는 유지)
+            localStorage.removeItem('lastProject');
+            localStorage.removeItem('projects');
+
+            this.updateProjectName();
+
+            if (window.UI?.showToast) {
+                window.UI.showToast('모든 데이터가 초기화되었습니다', 'success');
+            }
+            console.log('🔄 전체 초기화 완료');
         }
     },
 
@@ -1194,29 +1248,19 @@ _loadCharactersFallback(data) {
         }
     },
 
-    // 백엔드 연결 확인 + 데모모드 연동
+    // 백엔드 연결 확인
     async checkBackendConnection() {
         try {
             const isConnected = window.API?.checkHealth ? await window.API.checkHealth() : false;
-            
+
             if (isConnected) {
                 console.log('✅ 백엔드 연결됨');
-                this.isDemoMode = false;
             } else {
-                console.warn('⚠️ 백엔드 연결 실패 - 데모 모드');
-                this.isDemoMode = true;
+                console.warn('⚠️ 백엔드 연결 실패 - 이미지 생성 기능 제한');
             }
         } catch (error) {
-            console.warn('⚠️ 백엔드 연결 실패 - 데모 모드:', error.message);
-            this.isDemoMode = true;
+            console.warn('⚠️ 백엔드 연결 실패:', error.message);
         }
-
-       // API 모듈에 데모모드 상태 동기화
-if (window.API?.setDemoMode) {
-  this.isDemoMode = false;        // ✅ 항상 실전
-  window.API.setDemoMode(false);  // ✅ 항상 실전
-  console.log('🔄 API 데모모드 설정: false (forced)');
-}
     },
 
     // ========== API 설정 모달 ==========

@@ -379,15 +379,19 @@ const ScriptManager = {
 
             this.state.analysisResult = analysisResult;
             this.state.isAnalyzed = true;
-            
-            // ✅ 등장인물 데이터도 저장
+
+            // 등장인물 데이터도 저장
             const currentChars = window.CharacterManager.getCharacters?.() || window.CharacterManager.state?.characters || [];
             this.state.savedCharacters = [...currentChars];
 
             UI.hideLoading();
 
-            // 분석 결과 모달 표시
-            this.showAnalysisModal(analysisResult);
+            // 분석 결과 모달 표시 (장면 수 데이터가 있는 경우에만)
+            if (analysisResult && Object.keys(analysisResult).length > 0) {
+                this.showAnalysisModal(analysisResult);
+            } else {
+                UI.showToast('분석은 완료되었으나 장면 수 데이터가 없습니다', 'info');
+            }
 
             // ✅ v1.2: 분석 완료 후 자동 저장
             this.triggerAutoSave();
@@ -404,61 +408,74 @@ const ScriptManager = {
     // AI 분석 수행 - v2.0 (등장인물 + 장면 수)
     async performAnalysis(scripts) {
         console.log('🤖 대본 분석 시작...');
-        
-        // Gemini API 사용 (폴백: 규칙 기반)
+
+        // 기존 등장인물 초기화 (새 분석 시작 시 이전 데이터 제거)
+        if (window.CharacterManager?.setCharacters) {
+            window.CharacterManager.setCharacters([]);
+        }
+
+        // Gemini API 키 확인
+        const hasGeminiKey = !!(window.API?.GEMINI_API_KEY);
+
+        if (!hasGeminiKey) {
+            console.warn('⚠️ Gemini API 키 미설정 - 규칙 기반 분석 사용 (등장인물 추출 불가)');
+            UI.showToast('⚠️ Gemini API 키가 없어 등장인물 추출이 불가합니다. API 설정에서 키를 등록해주세요.', 'error');
+        }
+
         try {
             const result = await API.analyzeScriptWithGemini(scripts);
             console.log('✅ 대본 분석 완료:', result);
-            
-            // 🆕 등장인물 자동 추출 (window.CharacterManager로 전달) - v3.0 era 포함
+
+            // 등장인물 자동 추출 (Gemini가 분석한 결과)
             if (result.characters && result.characters.length > 0) {
                 console.log(`👥 등장인물 ${result.characters.length}명 자동 추출됨`);
-                console.log(`📅 시대 배경: ${result.era || 'joseon'}`);
+                console.log(`📅 시대 배경: ${result.era || 'modern'}`);
 
-                // window.CharacterManager에 등장인물 설정
                 const mappedCharacters = result.characters.map(char => ({
                     name: char.name,
                     nameEn: char.nameEn,
                     descriptionKo: char.descriptionKo,
                     descriptionEn: char.descriptionEn,
-                    description: char.descriptionEn,  // 기존 호환성
-                    era: char.era || result.era || 'joseon',  // 🆕 시대 정보
+                    description: char.descriptionEn,
+                    era: char.era || result.era || 'modern',
                     ethnicity: window.CharacterManager.state?.currentEthnicity || 'korean',
                     style: window.CharacterManager.state?.currentStyle || window.CharacterManager.projectStyle || 'korean-webtoon'
                 }));
 
-                // ✅ setCharacters 호출 (id, imageStatus 자동 생성)
                 window.CharacterManager.setCharacters(mappedCharacters);
-                
-                // 등장인물 생성 버튼 활성화
+
                 const generateBtn = document.getElementById('generate-characters-btn');
                 if (generateBtn) {
                     generateBtn.disabled = false;
                 }
-                
-                UI.showToast(`✅ ${result.characters.length}명의 등장인물 자동 추출 완료!`, 'success');
+
+                UI.showToast(`✅ Gemini 분석 완료: ${result.characters.length}명의 등장인물 추출됨`, 'success');
+            } else {
+                UI.showToast('⚠️ 대본에서 등장인물을 찾지 못했습니다', 'info');
             }
-            
-            // 장면 수 데이터만 반환 (기존 UI 호환성)
-            return result.scenes || result;
-            
+
+            // 장면 수 데이터만 반환
+            if (result.scenes && Object.keys(result.scenes).length > 0) {
+                return result.scenes;
+            }
+
+            // scenes가 없으면 규칙 기반으로 장면 수만 계산
+            const fallbackScenes = API.analyzeScriptRuleBased(scripts);
+            return fallbackScenes.scenes || {};
+
         } catch (error) {
-            console.error('❌ 분석 실패, 규칙 기반 사용:', error);
+            console.error('❌ Gemini 분석 실패:', error);
+
+            // 규칙 기반으로 장면 수만 계산 (등장인물 추출 없음)
             const fallbackResult = API.analyzeScriptRuleBased(scripts);
 
-            // 규칙 기반의 경우 기본 등장인물 설정
-            if (fallbackResult.characters) {
-                const mappedChars = fallbackResult.characters.map(char => ({
-                    ...char,
-                    ethnicity: window.CharacterManager.state?.currentEthnicity || 'korean',
-                    style: window.CharacterManager.state?.currentStyle || window.CharacterManager.projectStyle || 'korean-webtoon'
-                }));
-
-                // ✅ setCharacters 호출 (id, imageStatus 자동 생성)
-                window.CharacterManager.setCharacters(mappedChars);
+            if (!hasGeminiKey) {
+                UI.showToast('⚠️ Gemini API 키를 등록하면 등장인물을 자동 추출할 수 있습니다', 'info');
+            } else {
+                UI.showToast('❌ Gemini 분석 실패. 장면 수만 규칙 기반으로 계산됩니다.', 'error');
             }
 
-            return fallbackResult.scenes || fallbackResult;
+            return fallbackResult.scenes || {};
         }
     },
 

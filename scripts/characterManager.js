@@ -548,7 +548,7 @@ class CharacterManager {
         } else if (!isGenerating && character.imageStatus !== 'completed') {
             actionsHtml = `
                 <div class="character-actions">
-                    <button class="btn btn-small btn-primary" onclick="event.stopPropagation(); window.CharacterManager.generateCharacterImage('${character.id}')">
+                    <button class="btn btn-primary" onclick="event.stopPropagation(); window.CharacterManager.generateCharacterImage('${character.id}')">
                         ✨ 이미지 생성
                     </button>
                 </div>

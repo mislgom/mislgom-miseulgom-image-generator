@@ -1,6 +1,6 @@
 /**
  * 미슬곰 이미지 자동 생성기 v2.1 - API 통신 모듈
- * 백엔드 API와 통신 (데모 모드 포함)
+ * 백엔드 API와 통신
  *
  * v2.0 - 에러별 재시도 정책 + 동시성 제한 + Retry-After 지원
  * v2.1 - 호출 경로 통일 + 딜레이 중복 제거 + 에러 정보 보존 + 메시지 정교화
@@ -47,9 +47,6 @@ const API = {
             if (next) next();
         }
     },
-
-    // ✅ v2.1: 데모 모드 플래그
-    demoMode: false,
 
     // Gemini 대본 분석 API 설정
     GEMINI_API_KEY: '',
@@ -112,14 +109,6 @@ const API = {
         return !!(this.IMAGE_API_TYPE && this.IMAGE_API_KEY);
     },
 
-    /**
-     * 데모 모드 설정
-     */
-    setDemoMode(enabled) {
-        this.demoMode = enabled;
-        console.log(`🎮 데모 모드: ${enabled ? 'ON' : 'OFF'}`);
-    },
-
     // 헬스 체크
     async checkHealth() {
         try {
@@ -166,15 +155,8 @@ const API = {
 
             return await response.json();
         } catch (error) {
-            console.warn('⚠️ API 호출 실패, 데모 데이터 사용');
-
-            return {
-                characters: [
-                    { name: '윤해린', nameEn: 'Yoon Haerin', description: '20대 초반 여성, 긴 검은 머리, 우아한 한복' },
-                    { name: '백도식', nameEn: 'Baek Dosik', description: '30대 남성, 짧은 검은 머리, 전통 한복' },
-                ],
-                sceneCount: 30,
-            };
+            console.error('❌ 대본 분석 API 호출 실패:', error.message);
+            throw new Error('대본 분석에 실패했습니다. Gemini API 키를 확인해주세요.');
         }
     },
 
@@ -706,21 +688,10 @@ ${scriptsJson}
      */
     analyzeScriptRuleBased(scripts) {
         console.log('📝 규칙 기반 대본 분석 시작 (Gemini API 없음)');
+        console.warn('⚠️ Gemini API 키가 없어 등장인물 자동 추출이 불가합니다. API 키를 등록해주세요.');
 
-        const characters = [
-            {
-                name: '주인공',
-                nameEn: 'Protagonist',
-                descriptionKo: '20대 중반, 검은 머리, 평범한 옷차림',
-                descriptionEn: 'young adult in mid-20s, black hair, casual clothing, determined expression'
-            },
-            {
-                name: '조력자',
-                nameEn: 'Helper',
-                descriptionKo: '30대, 갈색 머리, 지혜로운 표정',
-                descriptionEn: 'person in their 30s, brown hair, wise expression, traditional clothing'
-            }
-        ];
+        // Gemini API 없이는 등장인물 추출 불가 - 빈 배열 반환
+        const characters = [];
 
         const scenes = {};
 
@@ -767,8 +738,8 @@ ${scriptsJson}
         });
 
         const result = { characters, scenes };
-        console.log('✅ 규칙 기반 분석 완료:', result);
-        console.log('⚠️ 경고: Gemini API 사용 시 더 정확한 등장인물 추출과 장면 분석이 가능합니다.');
+        console.log('✅ 규칙 기반 분석 완료 (장면 수만 계산됨):', result);
+        console.log('⚠️ 등장인물 추출을 위해서는 Gemini API 키를 등록해주세요.');
 
         return result;
     },
