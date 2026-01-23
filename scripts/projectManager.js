@@ -1,6 +1,7 @@
 /**
- * 미슬곰 이미지 자동 생성기 v1.0 - 프로젝트 관리 모듈
+ * 미슬곰 이미지 자동 생성기 v1.1 - 프로젝트 관리 모듈
  * LocalStorage 기반 프로젝트 저장/불러오기
+ * v1.1: projectId(불변 식별자) 추가 - 캐릭터 외형 일관성/프로젝트 분리용
  */
 
 const ProjectManager = {
@@ -12,18 +13,38 @@ const ProjectManager = {
         console.log('💾 ProjectManager 초기화');
     },
 
+    // 불변 projectId 생성 (프로젝트당 1회만 호출)
+    generateProjectId() {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+            return crypto.randomUUID();
+        }
+        // fallback: 브라우저가 randomUUID를 지원하지 않는 경우
+        return 'proj_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 9);
+    },
+
     // 프로젝트 저장
     saveProject(projectData) {
         try {
+            // projectId가 없으면 새로 생성 (최초 저장 시 1회)
+            if (!projectData.projectId) {
+                projectData.projectId = this.generateProjectId();
+                console.log('🆔 새 projectId 생성:', projectData.projectId);
+            }
+
             // 현재 프로젝트로 설정
             localStorage.setItem(this.currentProjectKey, JSON.stringify(projectData));
 
             // 프로젝트 목록에 추가
             const projects = this.getAllProjects();
-            
-            // 같은 이름의 프로젝트가 있으면 업데이트
-            const existingIndex = projects.findIndex(p => p.name === projectData.name);
-            
+
+            // projectId 기준으로 기존 프로젝트 찾기 (이름 변경에도 동일 프로젝트 인식)
+            let existingIndex = projects.findIndex(p => p.projectId && p.projectId === projectData.projectId);
+
+            // projectId로 못 찾으면 이름으로 폴백 (기존 데이터 호환)
+            if (existingIndex < 0) {
+                existingIndex = projects.findIndex(p => !p.projectId && p.name === projectData.name);
+            }
+
             if (existingIndex >= 0) {
                 projects[existingIndex] = projectData;
             } else {
@@ -33,7 +54,7 @@ const ProjectManager = {
             // 저장
             localStorage.setItem(this.storageKey, JSON.stringify(projects));
 
-            console.log('💾 프로젝트 저장됨:', projectData.name);
+            console.log('💾 프로젝트 저장됨:', projectData.name, '(id:', projectData.projectId, ')');
             return true;
 
         } catch (error) {
