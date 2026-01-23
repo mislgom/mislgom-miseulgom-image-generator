@@ -8,6 +8,7 @@
 const App = {
     version: '2.0.5',
     projectName: '새 프로젝트',
+    currentProjectId: null, // 불변 프로젝트 식별자 (캐릭터 외형 분리용)
     isDemoMode: true,
     projectStyle: null,  // 프로젝트 스타일 (외부 주입용)
     autoSaveTimer: null, // 자동 저장 타이머
@@ -511,7 +512,17 @@ try {
     newProject() {
         if (confirm('새 프로젝트를 만들시겠습니까? 저장하지 않은 내용은 사라집니다.')) {
             this.projectName = '새 프로젝트';
-            
+
+            // 새 프로젝트에 불변 projectId 부여
+            this.currentProjectId = window.ProjectManager?.generateProjectId
+                ? window.ProjectManager.generateProjectId()
+                : crypto.randomUUID();
+
+            // CharacterManager에 새 projectId 전달
+            if (window.CharacterManager?.setProjectId) {
+                window.CharacterManager.setProjectId(this.currentProjectId);
+            }
+
             // 모든 모듈 초기화 (안전가드 적용)
             if (window.ScriptManager?.resetAnalysis) {
                 window.ScriptManager.resetAnalysis();
@@ -562,8 +573,16 @@ try {
     // 프로젝트 저장 (안전가드 적용)
     saveProject() {
         try {
+            // projectId가 없으면 새로 생성 (최초 저장 시)
+            if (!this.currentProjectId) {
+                this.currentProjectId = window.ProjectManager?.generateProjectId
+                    ? window.ProjectManager.generateProjectId()
+                    : crypto.randomUUID();
+            }
+
             const projectData = {
                 name: this.projectName,
+                projectId: this.currentProjectId,
                 version: this.version,
                 savedAt: Date.now(),
                 // 안전가드: saveState 메서드 존재 여부 확인
@@ -616,7 +635,22 @@ try {
     loadProject(projectData) {
         try {
             this.projectName = projectData.name;
-            
+
+            // projectId 복원 (기존 프로젝트에 없으면 새로 부여 후 유지)
+            if (projectData.projectId) {
+                this.currentProjectId = projectData.projectId;
+            } else {
+                this.currentProjectId = window.ProjectManager?.generateProjectId
+                    ? window.ProjectManager.generateProjectId()
+                    : crypto.randomUUID();
+                projectData.projectId = this.currentProjectId;
+            }
+
+            // CharacterManager에 projectId 전달
+            if (window.CharacterManager?.setProjectId) {
+                window.CharacterManager.setProjectId(this.currentProjectId);
+            }
+
             // 모듈 상태 복원 (안전가드 적용)
             if (projectData.script && window.ScriptManager?.loadState) {
                 window.ScriptManager.loadState(projectData.script);
@@ -702,6 +736,7 @@ _loadCharactersFallback(data) {
         try {
             const projectData = {
                 name: this.projectName,
+                projectId: this.currentProjectId,
                 version: this.version,
                 exportedAt: Date.now(),
                 script: window.ScriptManager?.saveState ? window.ScriptManager.saveState() : null,

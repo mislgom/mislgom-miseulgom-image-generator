@@ -1,4 +1,5 @@
-// scripts/characterManager.js v2.3
+// scripts/characterManager.js v2.4
+// v2.4: projectId 기반 seed 생성 (프로젝트별 캐릭터 외형 분리)
 // 3회 재시도 실패 UX + seed 고정 + 기존 CSS 사용 (스타일 주입 제거)
 
 class CharacterManager {
@@ -8,11 +9,12 @@ class CharacterManager {
             selectedCharacter: null,
             isGenerating: false
         };
-        
+
         this.container = null;
         this.onCharacterSelect = null;
         this.onCharacterUpdate = null;
         this.projectStyle = null;
+        this.projectId = null; // 프로젝트별 캐릭터 외형 분리용
         this._isInitialRenderDone = false;
         
         // 얼굴 특징 배열 (seed 기반 조합용)
@@ -55,6 +57,11 @@ class CharacterManager {
         console.log('[CharacterManager] 프로젝트 스타일 설정:', style);
     }
 
+    setProjectId(projectId) {
+        this.projectId = projectId;
+        console.log('[CharacterManager] projectId 설정:', projectId);
+    }
+
     _generateStableId(character, index) {
         const name = (character.name || character.nameEn || 'unknown').trim().toLowerCase();
         const role = (character.role || 'default').trim().toLowerCase();
@@ -72,12 +79,15 @@ class CharacterManager {
         return 'char_' + Math.abs(hash).toString(36);
     }
 
-    _generateSeedFromId(characterId) {
+    _generateSeedFromId(projectId, characterId) {
         if (!characterId) return Math.floor(Math.random() * 2147483647);
-        
+
+        // projectId + characterId를 결합하여 프로젝트별 고유 seed 생성
+        const combined = (projectId || '') + ':' + characterId;
+
         let hash = 0;
-        for (let i = 0; i < characterId.length; i++) {
-            const char = characterId.charCodeAt(i);
+        for (let i = 0; i < combined.length; i++) {
+            const char = combined.charCodeAt(i);
             hash = ((hash << 5) - hash) + char;
             hash = hash & hash;
         }
@@ -85,7 +95,7 @@ class CharacterManager {
     }
 
     _generateFaceFeatures(characterId) {
-        const seed = this._generateSeedFromId(characterId);
+        const seed = this._generateSeedFromId(this.projectId, characterId);
         
         const eyesIndex = seed % this.eyesOptions.length;
         const faceIndex = Math.floor(seed / 7) % this.faceOptions.length;
@@ -136,7 +146,7 @@ class CharacterManager {
                 imageUrl: char.imageUrl || null,
                 imageStatus: char.imageStatus ?? 'pending',
                 lastError: null,
-                seed: char.seed || this._generateSeedFromId(stableId),
+                seed: char.seed || this._generateSeedFromId(this.projectId, stableId),
                 faceSpec: char.faceSpec || null
             };
         });
