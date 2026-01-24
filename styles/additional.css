@@ -405,8 +405,16 @@
 
 .character-actions {
     display: flex;
+    justify-content: center;
     gap: 8px;
-    padding: 0 16px 16px;
+    padding: 8px 16px 16px;
+}
+
+.character-actions .btn {
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 8px;
 }
 
 /* 스토리보드 섹션 */
